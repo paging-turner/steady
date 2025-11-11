@@ -6,13 +6,6 @@
 
 typedef struct Steady_Queue_Node Steady_Queue_Node;
 
-/* typedef struct steady_queue_ref steady_queue_ref; */
-/* struct steady_queue_ref { */
-/*   Steady_Queue_Node *node; */
-/*   uint64_t version; */
-/*   steady_queue_ref *next; */
-/* }; */
-
 struct Steady_Queue_Node {
   Steady_Queue_Value_Type value;
   Steady_Queue_Node *next;
