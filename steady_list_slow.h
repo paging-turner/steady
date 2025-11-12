@@ -33,13 +33,16 @@ typedef struct {
 } Steady_Queue_Slow;
 
 
-void steady_queue_slow_copy_current_version(Steady_Arena *arena, Steady_Queue_Slow *queue) {
-  Steady_Queue_Slow_Version *current_version = queue->last_version;
+
+static void steady_queue_slow_copy_current_version(Steady_Arena *arena, Steady_Queue_Slow *queue) {
+  // create new version
+  Steady_Queue_Slow_Version *previous_version = queue->last_version;
   Steady_Queue_Slow_Version *next_version = steady_arena_push_size(arena, sizeof(Steady_Queue_Slow_Version));
   SLLQueuePush_NZ(queue->first_version, queue->last_version, next_version, next_version, 0);
 
-  if (current_version) {
-    for (Steady_Queue_Slow_Node *n = current_version->first; n != 0; n = n->next) {
+  // copy nodes from previous version
+  if (previous_version) {
+    for (Steady_Queue_Slow_Node *n = previous_version->first; n != 0; n = n->next) {
       Steady_Queue_Slow_Node *copy_node = steady_arena_push_size(arena, sizeof(Steady_Queue_Slow_Node));
       *copy_node = *n;
       SLLQueuePush(next_version->first, next_version->last, copy_node);
@@ -47,13 +50,16 @@ void steady_queue_slow_copy_current_version(Steady_Arena *arena, Steady_Queue_Sl
   }
 }
 
-void steady_queue_slow_copy_current_version_and_skip(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady_Queue_Slow_Id skip_id) {
-  Steady_Queue_Slow_Version *current_version = queue->last_version;
+
+static void steady_queue_slow_copy_current_version_and_skip(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady_Queue_Slow_Id skip_id) {
+  // create new version
+  Steady_Queue_Slow_Version *previous_version = queue->last_version;
   Steady_Queue_Slow_Version *next_version = steady_arena_push_size(arena, sizeof(Steady_Queue_Slow_Version));
   SLLQueuePush_NZ(queue->first_version, queue->last_version, next_version, next_version, 0);
 
-  if (current_version) {
-    for (Steady_Queue_Slow_Node *n = current_version->first; n != 0; n = n->next) {
+  // copy nodes from previous version
+  if (previous_version) {
+    for (Steady_Queue_Slow_Node *n = previous_version->first; n != 0; n = n->next) {
       if (n->id != skip_id) {
         Steady_Queue_Slow_Node *copy_node = steady_arena_push_size(arena, sizeof(Steady_Queue_Slow_Node));
         *copy_node = *n;
@@ -63,9 +69,11 @@ void steady_queue_slow_copy_current_version_and_skip(Steady_Arena *arena, Steady
   }
 }
 
+
 void steady_queue_slow_push(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady_Queue_Slow_Node *node) {
   steady_queue_slow_copy_current_version(arena, queue);
 
+  // set and increment id
   node->id = queue->current_id;
   queue->current_id += 1;
 
@@ -76,11 +84,13 @@ void steady_queue_slow_push(Steady_Arena *arena, Steady_Queue_Slow *queue, Stead
 void steady_queue_slow_push_front(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady_Queue_Slow_Node *node) {
   steady_queue_slow_copy_current_version(arena, queue);
 
+  // set and increment id
   node->id = queue->current_id;
   queue->current_id += 1;
 
   SLLQueuePushFront(queue->last_version->first, queue->last_version->last, node);
 }
+
 
 void steady_queue_slow_pop(Steady_Arena *arena, Steady_Queue_Slow *queue) {
   if (queue->last_version && queue->last_version->first) {
@@ -88,6 +98,7 @@ void steady_queue_slow_pop(Steady_Arena *arena, Steady_Queue_Slow *queue) {
     steady_queue_slow_copy_current_version_and_skip(arena, queue, skip_id);
   }
 }
+
 
 void steady_queue_slow_delete(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady_Queue_Slow_Id id) {
   steady_queue_slow_copy_current_version_and_skip(arena, queue, id);
