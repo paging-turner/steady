@@ -59,7 +59,7 @@ int main(void) {
   steady_queue_slow_push(slow_arena, &queue, &node_a);
   steady_queue_slow_push(slow_arena, &queue, &node_b);
   steady_queue_slow_push_front(slow_arena, &queue, &node_c);
-  steady_queue_slow_delete(slow_arena, &queue, node_a.value);
+  steady_queue_slow_delete(slow_arena, &queue, node_a.id);
   steady_queue_slow_pop(slow_arena, &queue);
 
   S32 version_index = 0;
