@@ -8,14 +8,7 @@
 # define Steady_Queue_Slow_Value_Type void*
 #endif
 
-#if 0
-#ifndef Steady_Arena
-# error "Steady requires that an arena type be defined."
-#endif
-#ifndef steady_arena_push_size
-# error "Steady requires that an arena function be defined that takes an arena and a size."
-#endif
-#endif
+
 
 typedef struct Steady_Queue_Slow_Node Steady_Queue_Slow_Node;
 
@@ -36,7 +29,8 @@ typedef struct {
   Steady_Queue_Slow_Version *last_version;
 } Steady_Queue_Slow;
 
-void steady_queue_slow_push(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady_Queue_Slow_Node *node) {
+
+void steady_queue_slow_copy_current_version(Steady_Arena *arena, Steady_Queue_Slow *queue) {
   Steady_Queue_Slow_Version *current_version = queue->last_version;
   Steady_Queue_Slow_Version *next_version = steady_arena_push_size(arena, sizeof(Steady_Queue_Slow_Version));
   SLLQueuePush_NZ(queue->first_version, queue->last_version, next_version, next_version, 0);
@@ -48,28 +42,44 @@ void steady_queue_slow_push(Steady_Arena *arena, Steady_Queue_Slow *queue, Stead
       SLLQueuePush(next_version->first, next_version->last, copy_node);
     }
   }
-
-  SLLQueuePush(next_version->first, next_version->last, node);
 }
 
-#if 0
-void steady_queue_slow_push(Steady_Queue_Slow *queue, Steady_Queue_Slow_Node *node) {
-  if (queue->first == 0 || queue->last == 0) {
-    queue->first = queue->last = node;
-  } else {
-    queue->last->next = node;
-    queue->last = node;
-  }
-  node->next = 0;
-}
+void steady_queue_slow_copy_current_version_and_skip(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady_Queue_Slow_Value_Type skip_value) {
+  Steady_Queue_Slow_Version *current_version = queue->last_version;
+  Steady_Queue_Slow_Version *next_version = steady_arena_push_size(arena, sizeof(Steady_Queue_Slow_Version));
+  SLLQueuePush_NZ(queue->first_version, queue->last_version, next_version, next_version, 0);
 
-void steady_queue_slow_push_front(Steady_Queue_Slow *queue, Steady_Queue_Slow_Node *node) {
-  if (queue->first == 0 || queue->last == 0) {
-    queue->first = queue->last = node;
-    node->next = 0;
-  } else {
-    node->next = queue->first;
-    queue->first = node;
+  if (current_version) {
+    for (Steady_Queue_Slow_Node *n = current_version->first; n != 0; n = n->next) {
+      if (n->value != skip_value) {
+        Steady_Queue_Slow_Node *copy_node = steady_arena_push_size(arena, sizeof(Steady_Queue_Slow_Node));
+        *copy_node = *n;
+        SLLQueuePush(next_version->first, next_version->last, copy_node);
+      }
+    }
   }
 }
-#endif
+
+void steady_queue_slow_push(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady_Queue_Slow_Node *node) {
+  steady_queue_slow_copy_current_version(arena, queue);
+
+  SLLQueuePush(queue->last_version->first, queue->last_version->last, node);
+}
+
+
+void steady_queue_slow_push_front(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady_Queue_Slow_Node *node) {
+  steady_queue_slow_copy_current_version(arena, queue);
+
+  SLLQueuePushFront(queue->last_version->first, queue->last_version->last, node);
+}
+
+void steady_queue_slow_pop(Steady_Arena *arena, Steady_Queue_Slow *queue) {
+  if (queue->last_version && queue->last_version->first) {
+    Steady_Queue_Slow_Value_Type skip_value = queue->last_version->first->value;
+    steady_queue_slow_copy_current_version_and_skip(arena, queue, skip_value);
+  }
+}
+
+void steady_queue_slow_delete(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady_Queue_Slow_Value_Type value) {
+  steady_queue_slow_copy_current_version_and_skip(arena, queue, value);
+}

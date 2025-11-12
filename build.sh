@@ -1,3 +1,3 @@
 #!/usr/bin/env sh
 
-clang -g test_list.c
+clang -g -Wno-switch test_list.c
