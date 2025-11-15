@@ -1,0 +1,3 @@
+Queue:
+  [ ] When deleting or popping, if the queue is empty, do NOT create a new version.
+  [ ] We use lists with first/last for nodes, and we have to maintain them in weird ways. This is only because we use the list-macro helpers. Maybe we don't use those here an we can remove the patching of the last pointers.
