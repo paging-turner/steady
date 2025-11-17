@@ -5,18 +5,18 @@
             "name": "ARM launch",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/a.out",
+            "program": "${workspaceFolder}/build/steady.out",
             "args": [],
-            "cwd": "${fileDirname}"
+            "cwd": "${fileDirname}/build"
         },
         {
             "name": "(lldb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/a.out",
+            "program": "${workspaceFolder}/build/steady.out",
             "args": [""],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/build",
             "environment": [],
             "externalConsole": false,
             "MIMode": "lldb"

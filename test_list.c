@@ -14,10 +14,10 @@
 #define Steady_Queue_Value_Type int
 
 #define Steady_Queue_Slow_Value_Type  Steady_Queue_Value_Type
-#include "steady_list_slow.h"
+#include "source/queue/steady_queue_slow.h"
 
 #define Steady_Queue_Copy_Value_Type  Steady_Queue_Value_Type
-#include "steady_list_copy.h"
+#include "source/queue/steady_queue_copy.h"
 
 
 
@@ -66,6 +66,7 @@ typedef enum {
   Steady_Queue_Action_Kind_PushFront,
   Steady_Queue_Action_Kind_Pop,
   Steady_Queue_Action_Kind_Delete,
+  Steady_Queue_Action_Kind_Set,
   Steady_Queue_Action_Kind__Count,
 } Steady_Queue_Action_Kind;
 
@@ -92,23 +93,9 @@ static Steady_Queue_Action *steady_setup_queue_actions(Arena *arena, U32 action_
     actions[1].value = 34;
     actions[2].kind = Steady_Queue_Action_Kind_Push;
     actions[2].value = 61;
-    actions[3].kind = Steady_Queue_Action_Kind_Pop;
-    actions[4].kind = Steady_Queue_Action_Kind_Delete;
-    actions[4].id = 0;
-    actions[5].kind = Steady_Queue_Action_Kind_Push;
-    actions[5].value = 79;
-    actions[6].kind = Steady_Queue_Action_Kind_Push;
-    actions[6].value = 77;
-    actions[7].kind = Steady_Queue_Action_Kind_Pop;
-    actions[8].kind = Steady_Queue_Action_Kind_Delete;
-    actions[8].id = 2;
-    actions[9].kind = Steady_Queue_Action_Kind_PushFront;
-    actions[9].value = 25;
-    actions[10].kind = Steady_Queue_Action_Kind_Delete;
-    actions[10].id = 1;
-    actions[11].kind = Steady_Queue_Action_Kind_Delete;
-    actions[11].id = 3;
-    actions[12].kind = Steady_Queue_Action_Kind_Pop;
+    actions[3].kind = Steady_Queue_Action_Kind_Set;
+    actions[3].id = 1;
+    actions[3].value = 999999;
   }
 #else
   Steady_Queue_Action *actions = arena_push(arena, action_count * sizeof(Steady_Queue_Action));
@@ -122,7 +109,8 @@ static Steady_Queue_Action *steady_setup_queue_actions(Arena *arena, U32 action_
       action->kind = action_kind;
 
       // don't delete if it's the first action
-      if (opl_max_node_id == 0 && action_kind == Steady_Queue_Action_Kind_Delete) {
+      if ((opl_max_node_id == 0 && action_kind == Steady_Queue_Action_Kind_Delete) ||
+          (opl_max_node_id == 0 && action_kind == Steady_Queue_Action_Kind_Set)) {
         action_kind = Steady_Queue_Action_Kind_Push;
         action->kind = Steady_Queue_Action_Kind_Push;
       }
@@ -133,6 +121,9 @@ static Steady_Queue_Action *steady_setup_queue_actions(Arena *arena, U32 action_
         opl_max_node_id += 1;
       } else if (action_kind == Steady_Queue_Action_Kind_Delete) {
         action->id = pcg32_boundedrand_r(&Steady_Rng, opl_max_node_id);
+      } else if (action_kind == Steady_Queue_Action_Kind_Set) {
+        action->id = pcg32_boundedrand_r(&Steady_Rng, opl_max_node_id);
+        action->value = pcg32_boundedrand_r(&Steady_Rng, 99);
       }
     }
   }
@@ -158,7 +149,10 @@ static void steady_debug_print_queue_actions(Steady_Queue_Action_Buffer *action_
       Steady_Debug_Print("  Pop\n");
     } break;
     case Steady_Queue_Action_Kind_Delete: {
-      Steady_Debug_Print("  Delete %llu\n", action->id);
+      Steady_Debug_Print("  Delete(%llu)\n", action->id);
+    } break;
+    case Steady_Queue_Action_Kind_Set: {
+      Steady_Debug_Print("  Set(%llu) %d\n", action->id, action->value);
     } break;
     }
   }
@@ -185,8 +179,12 @@ static void handle_queue_action_slow(Steady_Arena *arena, Steady_Queue_Slow *que
     steady_queue_slow_pop(arena, queue);
   } break;
   case Steady_Queue_Action_Kind_Delete: {
-    Steady_Debug_Print("slow delete %llu\n", action->id);
+    Steady_Debug_Print("slow delete(%llu)\n", action->id);
     steady_queue_slow_delete(arena, queue, action->id);
+  } break;
+  case Steady_Queue_Action_Kind_Set: {
+    Steady_Debug_Print("slow set(%llu) %d\n", action->id, action->value);
+    steady_queue_slow_set(arena, queue, action->id, action->value);
   } break;
   }
 }
@@ -212,6 +210,10 @@ static void handle_queue_action_copy(Steady_Arena *arena, Steady_Queue_Copy *que
   case Steady_Queue_Action_Kind_Delete: {
     Steady_Debug_Print("copy delete %llu\n", action->id);
     steady_queue_copy_delete(arena, queue, action->id);
+  } break;
+  case Steady_Queue_Action_Kind_Set: {
+    Steady_Debug_Print("copy set(%llu) %d\n", action->id, action->value);
+    steady_queue_copy_set(arena, queue, action->id, action->value);
   } break;
   }
 }
@@ -256,16 +258,19 @@ static void steady_queue_copy_print_version(Steady_Queue_Copy *queue, S32 versio
 
 
 int main(void) {
-  Arena *slow_arena = arena_alloc_reserve(10*1024*1024, 0);
-  Arena *copy_arena = arena_alloc_reserve(10*1024*1024, 0);
-  Arena *action_arena = arena_alloc_reserve(1*1024*1024, 0);
+  Arena *slow_arena = arena_alloc_reserve(100*1024*1024, 0);
+  Arena *copy_arena = arena_alloc_reserve(100*1024*1024, 0);
+  Arena *action_arena = arena_alloc_reserve(10*1024*1024, 0);
 
   SetPcgSeed(&Steady_Rng, 1, 1);
 
+  U64 slow_total_arena_size = 0;
+  U64 copy_total_arena_size = 0;
+
   // run tests
-  U32 run_count = 10000;
+  U32 run_count = 5000;
   for (U32 r = 0; r < run_count; ++r) {
-    if (r % 1000 == 0) {
+    if (r % 100 == 0) {
       printf("\n%d", r);
     }
     Steady_Queue_Slow slow_queue = (Steady_Queue_Slow){0};
@@ -273,13 +278,11 @@ int main(void) {
 
     Steady_Queue_Action_Buffer action_buffer;
 #if Steady_Debug_Manual_Actions
-    action_buffer.count = 13;
+    action_buffer.count = 4;
 #else
-    action_buffer.count = 8+pcg32_boundedrand_r(&Steady_Rng, 24);
+    action_buffer.count = 8+pcg32_boundedrand_r(&Steady_Rng, 1000);
 #endif
     action_buffer.actions = steady_setup_queue_actions(action_arena, action_buffer.count);
-
-    /* steady_debug_print_queue_actions(&action_buffer); */
 
     // perform slow actions
     for (U32 a = 0; a < action_buffer.count; ++a) {
@@ -296,8 +299,8 @@ int main(void) {
 
     if (slow_queue.version_count != copy_queue.version_count) {
       printf("[ Error ] Version mismatch!\n");
+      break;
     }
-    Assert(slow_queue.version_count == copy_queue.version_count);
 
     B32 error = 0;
     for (U32 v = 0; v < slow_queue.version_count; ++v) {
@@ -331,12 +334,18 @@ int main(void) {
 
     if (error) {
       break;
+    } else {
+      // log stats
+      slow_total_arena_size += arena_current_pos(slow_arena);
+      copy_total_arena_size += arena_current_pos(copy_arena);
     }
 
     arena_pop_to(slow_arena, 0);
     arena_pop_to(copy_arena, 0);
     arena_pop_to(action_arena, 0);
   }
+
+  printf("copy/slow ratio %.3f\n", (F32)copy_total_arena_size/(F32)slow_total_arena_size);
 
   return 0;
 }

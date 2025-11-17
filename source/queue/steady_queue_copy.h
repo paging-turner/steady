@@ -112,8 +112,9 @@ void steady_queue_copy_pop(Steady_Arena *arena, Steady_Queue_Copy *queue) {
 }
 
 
-void steady_queue_copy_delete(Steady_Arena *arena, Steady_Queue_Copy *queue, Steady_Queue_Copy_Id id) {
+static B32 steady_queue_copy_id_exists(Steady_Queue_Copy *queue, Steady_Queue_Copy_Id id) {
   B32 id_exists = 0;
+
   if (queue->last_version) {
     // @Speed look for id to delete
     for (Steady_Queue_Copy_Node *n = queue->last_version->first; n != 0; n = n->next) {
@@ -122,6 +123,14 @@ void steady_queue_copy_delete(Steady_Arena *arena, Steady_Queue_Copy *queue, Ste
       }
     }
   }
+
+  return id_exists;
+}
+
+
+void steady_queue_copy_delete(Steady_Arena *arena, Steady_Queue_Copy *queue, Steady_Queue_Copy_Id id) {
+  // @Copypasta steady_queue_copy_set_value
+  B32 id_exists = steady_queue_copy_id_exists(queue, id);
 
   if (id_exists) {
     // create new version
@@ -156,11 +165,59 @@ void steady_queue_copy_delete(Steady_Arena *arena, Steady_Queue_Copy *queue, Ste
             current_version->first = previous_version->first->next;
           }
         }
+        break;
       }
       previous_node = n;
     }
   }
 }
+
+
+void steady_queue_copy_set(Steady_Arena *arena, Steady_Queue_Copy *queue, Steady_Queue_Copy_Id id, Steady_Queue_Copy_Value_Type value) {
+  // @Copypasta steady_queue_copy_delete
+  B32 id_exists = steady_queue_copy_id_exists(queue, id);
+
+  if (id_exists) {
+    // create new version
+    Steady_Queue_Copy_Version *previous_version = queue->last_version;
+    steady_queue_copy_create_new_version(arena, queue);
+    Steady_Queue_Copy_Version *current_version = queue->last_version;
+
+    // find the node to edit
+    Steady_Queue_Copy_Node *previous_node = 0;
+    for (Steady_Queue_Copy_Node *n = previous_version->first; n != 0; n = n->next) {
+      if (n->id == id) {
+        if (previous_node) {
+          // copy nodes before the edited node
+          for (Steady_Queue_Copy_Node *c = previous_version->first; c != n; c = c->next) {
+            Steady_Queue_Copy_Node *copy_node = steady_arena_push_size(arena, sizeof(Steady_Queue_Copy_Node));
+            *copy_node = *c;
+            SLLQueuePush(current_version->first, current_version->last, copy_node);
+          }
+        }
+
+        // copy current-node and edit the value
+        Steady_Queue_Copy_Node *edit_node = steady_arena_push_size(arena, sizeof(Steady_Queue_Copy_Node));
+        *edit_node = *n;
+        edit_node->value = value;
+        SLLQueuePush(current_version->first, current_version->last, edit_node);
+
+        // point to the nodes after edited node from previous version
+        current_version->last->next = n->next;
+        // @Speed set last pointer of current-version list
+        Steady_Queue_Copy_Node *last_n = 0;
+        for (Steady_Queue_Copy_Node *nn = n->next; nn != 0; nn = nn->next) {
+          last_n = nn;
+        }
+        current_version->last = last_n;
+
+        break;
+      }
+      previous_node = n;
+    }
+  }
+}
+
 
 
 Steady_Queue_Copy_Version *steady_queue_copy_get_version(Steady_Queue_Copy *queue, U32 version_id) {

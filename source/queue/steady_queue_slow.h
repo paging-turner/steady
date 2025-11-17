@@ -41,7 +41,6 @@ static void steady_queue_slow_copy_current_version(Steady_Arena *arena, Steady_Q
   Steady_Queue_Slow_Version *next_version = steady_arena_push_size(arena, sizeof(Steady_Queue_Slow_Version));
   SLLQueuePush_NZ(queue->first_version, queue->last_version, next_version, next_version, 0);
   queue->version_count += 1;
-  /* printf("  slow version count += 1\n"); */
 
   // copy nodes from previous version
   if (previous_version) {
@@ -60,7 +59,6 @@ static void steady_queue_slow_copy_current_version_and_skip(Steady_Arena *arena,
   Steady_Queue_Slow_Version *next_version = steady_arena_push_size(arena, sizeof(Steady_Queue_Slow_Version));
   SLLQueuePush_NZ(queue->first_version, queue->last_version, next_version, next_version, 0);
   queue->version_count += 1;
-  /* printf("  slow version count += 1\n"); */
 
   // copy nodes from previous version
   if (previous_version) {
@@ -69,6 +67,28 @@ static void steady_queue_slow_copy_current_version_and_skip(Steady_Arena *arena,
         Steady_Queue_Slow_Node *copy_node = steady_arena_push_size(arena, sizeof(Steady_Queue_Slow_Node));
         *copy_node = *n;
         SLLQueuePush(next_version->first, next_version->last, copy_node);
+      }
+    }
+  }
+}
+
+
+static void steady_queue_slow_copy_current_version_and_set(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady_Queue_Slow_Id id, Steady_Queue_Slow_Value_Type value) {
+  // create new version
+  Steady_Queue_Slow_Version *previous_version = queue->last_version;
+  Steady_Queue_Slow_Version *next_version = steady_arena_push_size(arena, sizeof(Steady_Queue_Slow_Version));
+  SLLQueuePush_NZ(queue->first_version, queue->last_version, next_version, next_version, 0);
+  queue->version_count += 1;
+
+  // copy nodes from previous version
+  if (previous_version) {
+    for (Steady_Queue_Slow_Node *n = previous_version->first; n != 0; n = n->next) {
+      Steady_Queue_Slow_Node *copy_node = steady_arena_push_size(arena, sizeof(Steady_Queue_Slow_Node));
+      *copy_node = *n;
+      SLLQueuePush(next_version->first, next_version->last, copy_node);
+
+      if (copy_node->id == id) {
+        copy_node->value = value;
       }
     }
   }
@@ -105,8 +125,9 @@ void steady_queue_slow_pop(Steady_Arena *arena, Steady_Queue_Slow *queue) {
 }
 
 
-void steady_queue_slow_delete(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady_Queue_Slow_Id id) {
+B32 steady_queue_slow_id_exists(Steady_Queue_Slow *queue, Steady_Queue_Slow_Id id) {
   B32 id_exists = 0;
+
   if (queue->last_version) {
     // @Speed look for id to delete
     for (Steady_Queue_Slow_Node *n = queue->last_version->first; n != 0; n = n->next) {
@@ -116,10 +137,27 @@ void steady_queue_slow_delete(Steady_Arena *arena, Steady_Queue_Slow *queue, Ste
     }
   }
 
+  return id_exists;
+}
+
+
+void steady_queue_slow_delete(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady_Queue_Slow_Id id) {
+  B32 id_exists = steady_queue_slow_id_exists(queue, id);
+
   if (id_exists) {
     steady_queue_slow_copy_current_version_and_skip(arena, queue, id);
   }
 }
+
+
+void steady_queue_slow_set(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady_Queue_Slow_Id id, Steady_Queue_Slow_Value_Type value) {
+  B32 id_exists = steady_queue_slow_id_exists(queue, id);
+
+  if (id_exists) {
+    steady_queue_slow_copy_current_version_and_set(arena, queue, id, value);
+  }
+}
+
 
 Steady_Queue_Slow_Version *steady_queue_slow_get_version(Steady_Queue_Slow *queue, U32 version_id) {
   Steady_Queue_Slow_Version *version = 0;
