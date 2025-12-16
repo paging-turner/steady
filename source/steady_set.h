@@ -1,6 +1,9 @@
 #define Steady_Set_Items_Per_Leaf 4
 #define Steady_Set_Children_Per_Node 4
 
+#define Steady_Set_Inner_Node_Child_Threshold\
+  (U32)(ceil_F32((F32)Steady_Set_Children_Per_Node/2.0f))
+
 
 typedef struct Steady_Set_Item {
   U32 value;
@@ -19,7 +22,7 @@ typedef struct Steady_Set_Node {
   union {
     struct {
       struct Steady_Set_Node *children[Steady_Set_Children_Per_Node];
-      U64 max_node_id[Steady_Set_Children_Per_Node];
+      U64 threshold[Steady_Set_Children_Per_Node];
     };
     struct Steady_Set_Item items[Steady_Set_Items_Per_Leaf];
   };
@@ -64,6 +67,44 @@ static U32 steady_set_get_child_count(Steady_Set_Node *node) {
   return count;
 }
 
+static U32 steady_set_get_threshold_count(Steady_Set_Node *node) {
+  U32 count = 0;
+
+  for (U32 i = 0; i < Steady_Set_Children_Per_Node; ++i) {
+    U64 threshold = node->threshold[i];
+
+    if (threshold) {
+      count += 1;
+    }
+    else {
+      break;
+    }
+  }
+
+  return count;
+}
+
+
+static void steady_set_print_indent(U32 depth) {
+  for (U32 i = 0; i < depth; ++i) {
+    printf(" ");
+  }
+}
+
+static void steady_set_print_node_non_leaf(U32 depth) {
+  steady_set_print_indent(depth);
+  printf("-\n");
+}
+
+static void steady_set_print_node_leaf(Steady_Set_Stack stack, U32 depth) {
+  for (U32 i = 0; i < Steady_Set_Items_Per_Leaf; ++i) {
+    steady_set_print_indent(depth);
+    printf("%d\n", stack.first->node->items[i].value);
+  }
+}
+
+
+
 // TODO: Implement iterator for depth-first traversal of steady-set
 
 
@@ -84,6 +125,7 @@ static void steady_set_validate(Arena *arena, Steady_Set_Node *root) {
   SLLStackPush(stack.first, stack_node);
 
   U32 depth = 0;
+  S32 leaf_depth = -1;
 
   if (root->kind != Steady_Set_Node_Kind_Root &&
       root->kind != Steady_Set_Node_Kind_Leaf) {
@@ -91,8 +133,6 @@ static void steady_set_validate(Arena *arena, Steady_Set_Node *root) {
   }
   else {
     for (;;) {
-      /* Steady_Set_Stack_Node *current_node = stack.first; */
-
       if (stack.first) {
         B32 should_descend = 0;
         B32 should_ascend = 0;
@@ -100,26 +140,40 @@ static void steady_set_validate(Arena *arena, Steady_Set_Node *root) {
 
         switch (stack.first->node->kind) {
         case Steady_Set_Node_Kind_Root: {
-          for (U32 i = 0; i < depth; ++i) {
-            printf(" ");
+          steady_set_print_node_non_leaf(depth);
+
+          U32 child_count = steady_set_get_child_count(stack.first->node);
+          if (child_count < 2) {
+            printf("[ Validation Error ] Root node should have at least two children, but has %d\n", child_count);
           }
-          printf("-\n");
+
           should_descend = 1;
         } break;
         case Steady_Set_Node_Kind_Inner: {
-          for (U32 i = 0; i < depth; ++i) {
-            printf(" ");
+          steady_set_print_node_non_leaf(depth);
+
+          U32 child_count = steady_set_get_child_count(stack.first->node);
+          if (child_count < Steady_Set_Inner_Node_Child_Threshold) {
+            printf("[ Validation Error ] Inner node does not have enough children. Need %d but has %d\n", Steady_Set_Inner_Node_Child_Threshold, child_count);
           }
-          printf("-\n");
+
+          U32 threshold_count = steady_set_get_threshold_count(stack.first->node);
+          if (threshold_count != child_count - 1) {
+            printf("[ Validation Error ] Expected threshold count of %d but has %d\n", child_count - 1, threshold_count);
+          }
+
           should_descend = 1;
         } break;
         case Steady_Set_Node_Kind_Leaf: {
-          for (U32 i = 0; i < Steady_Set_Items_Per_Leaf; ++i) {
-            for (U32 i = 0; i < depth; ++i) {
-              printf(" ");
-            }
-            printf("%d\n", stack.first->node->items[i].value);
+          steady_set_print_node_leaf(stack, depth);
+
+          if (leaf_depth < 0) {
+            leaf_depth = depth;
           }
+          else if (leaf_depth != depth) {
+            printf("[ Validation Error ] Leaf depth mismatch. Previous depth at %d and current depth at %d\n", leaf_depth, depth);
+          }
+
           should_ascend = 1;
         } break;
         }

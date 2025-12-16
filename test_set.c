@@ -24,11 +24,17 @@ S32 main(void) {
   node_3->items[0].value = 1234;
   node_3->items[1].value = 478;
   node_3->items[2].value = 874;
+  Steady_Set_Node *node_4 = arena_push(arena, sizeof(Steady_Set_Node));
+  node_4->kind = Steady_Set_Node_Kind_Leaf;
+  node_4->items[0].value = 783;
+  node_4->items[1].value = 20;
+  node_4->items[2].value = 59;
 
   root->children[0] = node_0;
   root->children[1] = node_1;
   node_0->children[0] = node_2;
   node_1->children[0] = node_3;
+  node_1->children[1] = node_4;
 
   steady_set_validate(arena, root);
 
