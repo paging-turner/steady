@@ -159,6 +159,14 @@ void steady_queue_slow_set(Steady_Arena *arena, Steady_Queue_Slow *queue, Steady
 }
 
 
+void steady_queue_slow_undo(Steady_Arena *arena, Steady_Queue_Slow *queue) {
+  Assert(!"TODO");
+}
+
+void steady_queue_slow_redo(Steady_Arena *arena, Steady_Queue_Slow *queue) {
+  Assert(!"TODO");
+}
+
 Steady_Queue_Slow_Version *steady_queue_slow_get_version(Steady_Queue_Slow *queue, U32 version_id) {
   Steady_Queue_Slow_Version *version = 0;
 

@@ -67,6 +67,8 @@ typedef enum {
   Steady_Queue_Action_Kind_Pop,
   Steady_Queue_Action_Kind_Delete,
   Steady_Queue_Action_Kind_Set,
+  Steady_Queue_Action_Kind_Undo,
+  Steady_Queue_Action_Kind_Redo,
   Steady_Queue_Action_Kind__Count,
 } Steady_Queue_Action_Kind;
 
@@ -154,6 +156,12 @@ static void steady_debug_print_queue_actions(Steady_Queue_Action_Buffer *action_
     case Steady_Queue_Action_Kind_Set: {
       Steady_Debug_Print("  Set(%llu) %d\n", action->id, action->value);
     } break;
+    case Steady_Queue_Action_Kind_Undo: {
+      Steady_Debug_Print("  Undo\n");
+    } break;
+    case Steady_Queue_Action_Kind_Redo: {
+      Steady_Debug_Print("  Redo\n");
+    } break;
     }
   }
 }
@@ -186,6 +194,14 @@ static void handle_queue_action_slow(Steady_Arena *arena, Steady_Queue_Slow *que
     Steady_Debug_Print("slow set(%llu) %d\n", action->id, action->value);
     steady_queue_slow_set(arena, queue, action->id, action->value);
   } break;
+  case Steady_Queue_Action_Kind_Undo: {
+    Steady_Debug_Print("slow undo\n");
+    steady_queue_slow_undo(arena, queue);
+  } break;
+  case Steady_Queue_Action_Kind_Redo: {
+    Steady_Debug_Print("slow redo\n");
+    steady_queue_slow_redo(arena, queue);
+  } break;
   }
 }
 
@@ -214,6 +230,14 @@ static void handle_queue_action_copy(Steady_Arena *arena, Steady_Queue_Copy *que
   case Steady_Queue_Action_Kind_Set: {
     Steady_Debug_Print("copy set(%llu) %d\n", action->id, action->value);
     steady_queue_copy_set(arena, queue, action->id, action->value);
+  } break;
+  case Steady_Queue_Action_Kind_Undo: {
+    Steady_Debug_Print("copy undo\n");
+    steady_queue_copy_undo(arena, queue);
+  } break;
+  case Steady_Queue_Action_Kind_Redo: {
+    Steady_Debug_Print("copy redo\n");
+    steady_queue_copy_redo(arena, queue);
   } break;
   }
 }

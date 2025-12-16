@@ -219,6 +219,14 @@ void steady_queue_copy_set(Steady_Arena *arena, Steady_Queue_Copy *queue, Steady
 }
 
 
+void steady_queue_copy_undo(Steady_Arena *arena, Steady_Queue_Copy *queue) {
+  Assert(!"TODO");
+}
+
+void steady_queue_copy_redo(Steady_Arena *arena, Steady_Queue_Copy *queue) {
+  Assert(!"TODO");
+}
+
 
 Steady_Queue_Copy_Version *steady_queue_copy_get_version(Steady_Queue_Copy *queue, U32 version_id) {
   Steady_Queue_Copy_Version *version = 0;
