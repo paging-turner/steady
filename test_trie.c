@@ -8,11 +8,16 @@
 S32 main(void) {
   Arena *arena = arena_alloc_reserve(1024*1024, 0);
   Steady_Trie_Node *root = arena_push(arena, sizeof(Steady_Trie_Node));
-  Steady_Trie_Node *child = arena_push(arena, sizeof(Steady_Trie_Node));
+  /* Steady_Trie_Node *child = arena_push(arena, sizeof(Steady_Trie_Node)); */
 
-  root->occupied[17] = 1;
-  root->slots[121] = child;
-  child->occupied[64] = 1;
+  /* steady_trie_insert(arena, root, 189); */
+  /* steady_trie_insert(arena, root, 242); */
+  steady_trie_insert(arena, root, 42387468);
+  /* steady_trie_insert(arena, root, (U64)12370169555311111083); */
+
+  /* root->occupied[17] = 1; */
+  /* root->slots[121] = child; */
+  /* child->occupied[64] = 1; */
 
   steady_trie_print_trie(arena, root);
 
