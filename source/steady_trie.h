@@ -26,9 +26,18 @@
 #define Steady_Trie_Slot_Bits 8
 typedef U64 Steady_Trie_Key;
 typedef U8 Steady_Trie_Slot_Type;
+
+
+////////////////////////////
+// Computed Properties
+////////////////////////////
 #define Steady_Trie_Slot_Count (1 << Steady_Trie_Slot_Bits)
 #define Steady_Trie_Max_Depth (Steady_Trie_Key_Bits / Steady_Trie_Slot_Bits)
 
+
+////////////////////////////
+// Helper Macros
+////////////////////////////
 #define Steady_Trie_Is_Max_Depth(depth) ((depth)==Steady_Trie_Max_Depth-1)
 
 #define Steady_Trie_Slot_Mask(depth)\
@@ -76,11 +85,6 @@ typedef struct Steady_Trie_Iterator {
   Steady_Trie_Key key;
 } Steady_Trie_Iterator;
 
-// TODO: Should we just use a Steady_Trie_Stack_Node instead of a whole 'nother Steady_Trie_Location?
-typedef struct Steady_Trie_Location {
-  Steady_Trie_Node *node;
-  U32 index;
-} Steady_Trie_Location;
 
 
 
