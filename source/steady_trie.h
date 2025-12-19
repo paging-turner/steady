@@ -5,6 +5,7 @@
    [ ] Figure out a better name than just "trie", since "trie" is too generic.
    [ ] Use memory pool for stack-nodes
    [ ] Make persistant
+   [ ] Allow configuration to store keys least-to-most significant byte or most-to-least.
 
   The structure is meant to hold 64-bit keys, allowing for insertion, deletion, and searching.
 */
@@ -24,8 +25,17 @@
 ////////////////////////////
 #define Steady_Trie_Key_Bits 64
 #define Steady_Trie_Slot_Bits 8
+
+#if Steady_Trie_Key_Bits == 64
 typedef U64 Steady_Trie_Key;
+#elif Steady_Trie_Key_Bits == 32
+typedef U32 Steady_Trie_Key;
+#else
+# error Tests are only set up for Steady_Trie_Key_Bits to be 32 or 64.
+#endif
+
 typedef U8 Steady_Trie_Slot_Type;
+
 
 
 ////////////////////////////
@@ -172,7 +182,7 @@ static B32 steady_trie_iter_test(Steady_Trie_Iterator *iter) {
 static void steady_trie_print_trie(Arena *arena, Steady_Trie_Node *root) {
   printf("trie %p\n", root);
   Steady_Trie_Iterate(iter_name, arena, root) {
-    printf("  key %llu\n", iter_name->key);
+    printf("  key %llu\n", (U64)iter_name->key);
   }
 }
 
