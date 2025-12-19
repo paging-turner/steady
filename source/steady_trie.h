@@ -192,7 +192,6 @@ static void steady_trie_insert(Arena *arena, Steady_Trie_Node *root, Steady_Trie
     Assert(slot_value >= 0 && slot_value <= Steady_Trie_Slot_Mask(0));
 
     if (Steady_Trie_Is_Key_At_Final_Depth(key, d)) {
-      printf("inserting %llu at depth %d\n", key, d);
       node->occupied[slot_value] = 1;
       break;
     }
@@ -209,12 +208,44 @@ static void steady_trie_insert(Arena *arena, Steady_Trie_Node *root, Steady_Trie
 }
 
 
-static void steady_trie_delete(Steady_Trie_Node *root) {
+static void steady_trie_delete(Steady_Trie_Node *root, Steady_Trie_Key key) {
+  Steady_Trie_Node *node = root;
+
+  for (U32 d = 0; (d < Steady_Trie_Max_Depth) && node; ++d) {
+    // TODO: We could/should iteratively figure out the mask by shifting/masking an accumulated value.
+    Steady_Trie_Slot_Type slot_value = Steady_Trie_Get_Slot_Value(key, d);
+    Assert(slot_value >= 0 && slot_value <= Steady_Trie_Slot_Mask(0));
+
+    if (Steady_Trie_Is_Key_At_Final_Depth(key, d)) {
+      node->occupied[slot_value] = 0;
+      break;
+    }
+    else {
+      // Descend
+      node = node->slots[slot_value];
+    }
+  }
 }
 
 
-static Steady_Trie_Location *steady_trie_search(Steady_Trie_Node *root) {
-  Steady_Trie_Location *loc = 0;
+static B32 steady_trie_search(Steady_Trie_Node *root, Steady_Trie_Key key) {
+  B32 found = 0;
+  Steady_Trie_Node *node = root;
 
-  return loc;
+  for (U32 d = 0; (d < Steady_Trie_Max_Depth) && node; ++d) {
+    // TODO: We could/should iteratively figure out the mask by shifting/masking an accumulated value.
+    Steady_Trie_Slot_Type slot_value = Steady_Trie_Get_Slot_Value(key, d);
+    Assert(slot_value >= 0 && slot_value <= Steady_Trie_Slot_Mask(0));
+
+    if (Steady_Trie_Is_Key_At_Final_Depth(key, d)) {
+      found = node->occupied[slot_value];
+      break;
+    }
+    else {
+      // Descend
+      node = node->slots[slot_value];
+    }
+  }
+
+  return found;
 }
