@@ -8,8 +8,15 @@
 #include "libraries/pcg/pcg_basic.h"
 #include "libraries/pcg/pcg_basic.c"
 
+#if 1
+# define Steady_Trie_Use_Key_Value_Pair 1
+# define Steady_Trie_Value_Type U64
+# define Steady_Trie_Default_Value 42LLU
+# define Steady_Trie_Values_Equal(x, y)  ((x) == (y))
+#endif
 #include "source/steady_trie.h"
 
+#define Steady_Trie_Test_Arena_Size  (50*1024*1024)
 
 
 
@@ -40,23 +47,39 @@ static void SetPcgSeed(pcg32_random_t *Rng, B32 Nondeterministic, U32 Rounds)
 
 static B32
 steady_trie_ensure_key_has_occupation(Steady_Trie_Node *root, Steady_Trie_Key key, B32 occupation) {
-  B32 exists = steady_trie_search(root, key);
   B32 errors = 0;
+#if Steady_Trie_Use_Key_Value_Pair
+  Steady_Trie_Value_Type *value = steady_trie_search(root, key);
+
+  if (occupation && !value) {
+    printf("[ Error ] Null value at key %llu\n", (U64)key);
+    errors = 1;
+  }
+  else if (occupation && !Steady_Trie_Values_Equal(*value, Steady_Trie_Default_Value)) {
+    printf("[ Error ] Mismatched value at key %llu, expecting %llu but got %llu\n", (U64)key, Steady_Trie_Default_Value, *value);
+    errors = 1;
+  }
+  else if (!occupation && value) {
+    printf("[ Error ] Found a value at key %llu, but was not expecting a value.\n", (U64)key);
+    errors = 1;
+  }
+#else
+  B32 exists = steady_trie_search(root, key);
 
   if (exists != occupation) {
     printf("[ Error ] Expected key %llu to have occupation %d but it has occupation %d\n", (U64)key, occupation, exists);
     errors = 1;
   }
+#endif
 
   return errors;
 }
 
 static U32 steady_trie_run_tests(void) {
-  Arena *arena = arena_alloc_reserve(1024*1024, 0);
+  Arena *arena = arena_alloc_reserve(Steady_Trie_Test_Arena_Size, 0);
   Steady_Trie_Node *root = arena_push(arena, sizeof(Steady_Trie_Node));
   U32 error_count = 0;
 
-  // TODO: turn the following "tests" into actual tests that automatically detect errors. That way, we can try various configurations of trie settings to see if they all work.
   U64 a = 189;
   U64 b = 242;
   U64 c = 42387468;
@@ -77,7 +100,11 @@ static U32 steady_trie_run_tests(void) {
 
   printf("Inserting keys...\n");
   for (U32 i = 0; i < ArrayCount(keys_to_add); ++i) {
+#if Steady_Trie_Use_Key_Value_Pair
+    steady_trie_set(arena, root, keys_to_add[i], Steady_Trie_Default_Value);
+#else
     steady_trie_insert(arena, root, keys_to_add[i]);
+#endif
   }
 
   printf("Checking key occupancy...\n");
@@ -162,7 +189,11 @@ static U32 steady_trie_run_tests(void) {
 
 
 static void steady_trie_print_key_efficiency(Arena *arena, U64 key_count) {
+#if Steady_Trie_Use_Key_Value_Pair
+  U64 raw_key_size = key_count * (sizeof(Steady_Trie_Key) + sizeof(Steady_Trie_Value_Type));
+#else
   U64 raw_key_size = key_count * sizeof(Steady_Trie_Key);
+#endif
   U64 arena_pos = arena->chunk_pos;
   printf("Arena position %llu\n", arena_pos);
   printf("Raw key size %llu\n", raw_key_size);
@@ -170,14 +201,18 @@ static void steady_trie_print_key_efficiency(Arena *arena, U64 key_count) {
 }
 
 static void steady_trie_sequential_keys_test(void) {
-  Arena *arena = arena_alloc_reserve(1024*1024, 0);
+  Arena *arena = arena_alloc_reserve(Steady_Trie_Test_Arena_Size, 0);
   Steady_Trie_Node *root = arena_push(arena, sizeof(Steady_Trie_Node));
 
   U64 key_count = 5000;
 
   printf("Inserted %llu sequential keys...\n", key_count);
   for (U32 i = 0; i < key_count; ++i) {
+#if Steady_Trie_Use_Key_Value_Pair
+    steady_trie_set(arena, root, i, Steady_Trie_Default_Value);
+#else
     steady_trie_insert(arena, root, i);
+#endif
   }
 
   steady_trie_print_key_efficiency(arena, key_count);
@@ -185,7 +220,7 @@ static void steady_trie_sequential_keys_test(void) {
 
 
 static void steady_trie_random_32bit_keys_test(void) {
-  Arena *arena = arena_alloc_reserve(50*1024*1024, 0);
+  Arena *arena = arena_alloc_reserve(Steady_Trie_Test_Arena_Size, 0);
   SetPcgSeed(&Steady_Rng, 1, 1);
   Steady_Trie_Node *root = arena_push(arena, sizeof(Steady_Trie_Node));
 
@@ -194,7 +229,11 @@ static void steady_trie_random_32bit_keys_test(void) {
   printf("Inserted %llu random keys...\n", key_count);
   for (U32 i = 0; i < key_count; ++i) {
     U64 random_key = pcg32_boundedrand_r(&Steady_Rng, max_U32);
+#if Steady_Trie_Use_Key_Value_Pair
+    steady_trie_set(arena, root, random_key, Steady_Trie_Default_Value);
+#else
     steady_trie_insert(arena, root, random_key);
+#endif
   }
 
   steady_trie_print_key_efficiency(arena, key_count);
@@ -202,7 +241,7 @@ static void steady_trie_random_32bit_keys_test(void) {
 
 
 static void steady_trie_malloc_pointers_test(void) {
-  Arena *arena = arena_alloc_reserve(50*1024*1024, 0);
+  Arena *arena = arena_alloc_reserve(Steady_Trie_Test_Arena_Size, 0);
   Steady_Trie_Node *root = arena_push(arena, sizeof(Steady_Trie_Node));
 
   U64 key_count = 5000;
@@ -211,7 +250,11 @@ static void steady_trie_malloc_pointers_test(void) {
   printf("Inserted %llu malloc'ed pointers...\n", key_count);
   for (U32 i = 0; i < key_count; ++i) {
     U8 *pointer = malloc(malloc_size);
+#if Steady_Trie_Use_Key_Value_Pair
+    steady_trie_set(arena, root, (U64)pointer, Steady_Trie_Default_Value);
+#else
     steady_trie_insert(arena, root, (U64)pointer);
+#endif
   }
 
   steady_trie_print_key_efficiency(arena, key_count);

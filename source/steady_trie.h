@@ -8,9 +8,9 @@
    [ ] Figure out a better name than just "trie", since "trie" is too generic.
    [ ] Use memory pool for stack-nodes
    [ ] Make persistant
-   [ ] Allow configuration to store keys least-to-most significant byte or most-to-least.
-   [ ] Right now the keys are the values, but we probably want the option of having key/value pairs.
-
+   [x] Allow configuration to store keys least-to-most significant byte or most-to-least.
+   [x] Right now the keys are the values, but we probably want the option of having key/value pairs.
+   [ ] BUG: Steady_Trie_Slot_Bits == 2  and  Steady_Trie_Root_Is_Lowest_Significant_Byte == 0 causes errors.
 */
 
 
@@ -31,6 +31,10 @@
 
 #ifndef Steady_Trie_Root_Is_Lowest_Significant_Byte
 # define Steady_Trie_Root_Is_Lowest_Significant_Byte 0
+#endif
+
+#ifndef Steady_Trie_Use_Key_Value_Pair
+# define Steady_Trie_Use_Key_Value_Pair 0
 #endif
 
 #if Steady_Trie_Key_Bits == 64
@@ -58,22 +62,34 @@ typedef U8 Steady_Trie_Slot_Type;
 ////////////////////////////
 // Helper Macros
 ////////////////////////////
-// TODO: Put all macros split by Steady_Trie_Root_Is_Lowest_Significant_Byte into a single #if
 #if Steady_Trie_Root_Is_Lowest_Significant_Byte
 # define Steady_Trie_Slot_Mask(depth)\
   (~(((U64)1<<((depth+1)*Steady_Trie_Slot_Bits))-1))
+
+# define Steady_Trie_Get_Slot_Shift(depth)\
+  (depth)
+
+# define Steady_Trie_Get_Initial_Iter_Key_Chunk(index)\
+  (index)
 #else
 # define Steady_Trie_Slot_Mask(depth)\
   (~(max_U64<<(((Steady_Trie_Max_Depth-1)-depth)*Steady_Trie_Slot_Bits)))
-#endif
 
-#if Steady_Trie_Root_Is_Lowest_Significant_Byte
-# define Steady_Trie_Get_Slot_Shift(depth)\
-  (depth)
-#else
 # define Steady_Trie_Get_Slot_Shift(depth)\
   ((Steady_Trie_Max_Depth-1)-(depth))
+
+# define Steady_Trie_Get_Initial_Iter_Key_Chunk(index)\
+  (index)
+#endif // Steady_Trie_Root_Is_Lowest_Significant_Byte
+
+#if Steady_Trie_Root_Is_Lowest_Significant_Byte
+# define Steady_Trie_Get_Next_Iter_Key_Chunk(key, key_shift, index)\
+  (((key) << Steady_Trie_Slot_Bits) | ((index)-1))
+#else
+# define Steady_Trie_Get_Next_Iter_Key_Chunk(key, key_shift, index)\
+  ((key) | ((U64)((index)-1) << ((key_shift)*Steady_Trie_Slot_Bits)))
 #endif
+
 
 #define Steady_Trie_Get_Slot_Value(key, depth)\
   (((key) >> (Steady_Trie_Get_Slot_Shift(depth)*Steady_Trie_Slot_Bits)) &\
@@ -84,6 +100,7 @@ typedef U8 Steady_Trie_Slot_Type;
 
 #define Steady_Trie_Is_Key_At_Final_Depth(key, depth)\
   (Steady_Trie_Is_Max_Depth(depth) || ((Steady_Trie_Slot_Mask(depth) & key) == 0))
+
 
 ////////////////////////////
 // Static Invariants
@@ -97,6 +114,12 @@ StaticAssert((8*sizeof(Steady_Trie_Slot_Type) >= Steady_Trie_Slot_Bits),
 StaticAssert((8*sizeof(Steady_Trie_Key) == Steady_Trie_Key_Bits),
              Ensure_Key_Type_Equals_Key_Bits);
 
+#if Steady_Trie_Use_Key_Value_Pair
+# ifndef Steady_Trie_Value_Type
+#  error When using Steady_Trie_Use_Key_Value_Pair, Steady_Trie_Value_Type must also be defined.
+# endif
+#endif
+
 
 
 
@@ -105,6 +128,9 @@ StaticAssert((8*sizeof(Steady_Trie_Key) == Steady_Trie_Key_Bits),
 typedef struct Steady_Trie_Node {
   U8 occupied[Steady_Trie_Slot_Count]; // TODO: Bit-flags?
   struct Steady_Trie_Node *slots[Steady_Trie_Slot_Count];
+#if Steady_Trie_Use_Key_Value_Pair
+  Steady_Trie_Value_Type values[Steady_Trie_Slot_Count];
+#endif
 } Steady_Trie_Node;
 
 typedef struct Steady_Trie_Stack_Node {
@@ -132,29 +158,10 @@ steady_trie_create_stack_node(Arena *arena, Steady_Trie_Stack_Node *free_stack) 
   return node;
 }
 
-#define Steady_Trie_Iter_Key_Shift\
-  1
+#define Steady_Trie_Iter_Key_Shift  1
 
 #define Steady_Trie_Get_Next_Iter_Key_Shift(key_shift)\
   ((key_shift) + 1)
-
-#if Steady_Trie_Root_Is_Lowest_Significant_Byte
-# define Steady_Trie_Get_Initial_Iter_Key_Value(index)\
-  (index)
-#else
-# define Steady_Trie_Get_Initial_Iter_Key_Value(index)\
-  (index)
-  /* ((U64)(index) << Steady_Trie_Slot_Bits*(Steady_Trie_Max_Depth-1)) */
-#endif
-
-#if Steady_Trie_Root_Is_Lowest_Significant_Byte
-# define Steady_Trie_Get_Next_Iter_Key_Value(key, key_shift, index)\
-  (((key) << Steady_Trie_Slot_Bits) | ((index)-1))
-#else
-# define Steady_Trie_Get_Next_Iter_Key_Value(key, key_shift, index)\
-  ((key) | ((U64)((index)-1) << ((key_shift)*Steady_Trie_Slot_Bits)))
-#endif
-
 
 static void steady_trie_iter_next(Steady_Trie_Iterator *iter) {
   // Do a depth-first search until we find the next occupied key.
@@ -165,14 +172,14 @@ static void steady_trie_iter_next(Steady_Trie_Iterator *iter) {
                            (iter->stack->visited_plus_one-1 < iter->stack->index));
         if (iter->stack->node->occupied[iter->stack->index] && not_visited) {
           U32 key_shift = Steady_Trie_Iter_Key_Shift;
-          U64 key = Steady_Trie_Get_Initial_Iter_Key_Value(iter->stack->index);
+          U64 key = Steady_Trie_Get_Initial_Iter_Key_Chunk(iter->stack->index);
           // NOTE: key_shift is only used for when the root is the most-significant byte.
           // Build up the key value by collecting all the indices on the stack.
           for (Steady_Trie_Stack_Node *stack_node = iter->stack->next;
                stack_node != 0;
                stack_node = stack_node->next) {
             // NOTE: All of the nodes in the stack, aside from the current one, have had their indices iterated, so we need to subtract one from them. (This is alway why we do not process the current stack-node in the loop.)
-            key = Steady_Trie_Get_Next_Iter_Key_Value(key, key_shift, stack_node->index);
+            key = Steady_Trie_Get_Next_Iter_Key_Chunk(key, key_shift, stack_node->index);
             key_shift = Steady_Trie_Get_Next_Iter_Key_Shift(key_shift);
           }
           iter->key = key;
@@ -247,7 +254,11 @@ static void steady_trie_print_trie_as_dot_file(Steady_Trie_Node *root) {
 }
 
 
+#if Steady_Trie_Use_Key_Value_Pair
+static void steady_trie_set(Arena *arena, Steady_Trie_Node *root, Steady_Trie_Key key, Steady_Trie_Value_Type value) {
+#else
 static void steady_trie_insert(Arena *arena, Steady_Trie_Node *root, Steady_Trie_Key key) {
+#endif
   Steady_Trie_Node *node = root;
 
   for (U32 d = 0; (d < Steady_Trie_Max_Depth) && node; ++d) {
@@ -255,12 +266,11 @@ static void steady_trie_insert(Arena *arena, Steady_Trie_Node *root, Steady_Trie
     Steady_Trie_Slot_Type slot_value = Steady_Trie_Get_Slot_Value(key, d);
     Assert(slot_value >= 0 && slot_value <= Steady_Trie_Single_Slot_Mask);
 
-    B32 is_max_depth = Steady_Trie_Is_Max_Depth(d);
-    U64 slot_mask = Steady_Trie_Slot_Mask(d);
-    U64 slot_mask_and_with_key = slot_mask & key;
-
     if (Steady_Trie_Is_Key_At_Final_Depth(key, d)) {
       node->occupied[slot_value] = 1;
+#if Steady_Trie_Use_Key_Value_Pair
+      node->values[slot_value] = value;
+#endif
       break;
     }
     else {
@@ -296,8 +306,13 @@ static void steady_trie_delete(Steady_Trie_Node *root, Steady_Trie_Key key) {
 }
 
 
+#if Steady_Trie_Use_Key_Value_Pair
+static Steady_Trie_Value_Type *steady_trie_search(Steady_Trie_Node *root, Steady_Trie_Key key) {
+  Steady_Trie_Value_Type *value = 0;
+#else
 static B32 steady_trie_search(Steady_Trie_Node *root, Steady_Trie_Key key) {
   B32 found = 0;
+#endif
   Steady_Trie_Node *node = root;
 
   for (U32 d = 0; (d < Steady_Trie_Max_Depth) && node; ++d) {
@@ -306,7 +321,13 @@ static B32 steady_trie_search(Steady_Trie_Node *root, Steady_Trie_Key key) {
     Assert(slot_value >= 0 && slot_value <= Steady_Trie_Single_Slot_Mask);
 
     if (Steady_Trie_Is_Key_At_Final_Depth(key, d)) {
+#if Steady_Trie_Use_Key_Value_Pair
+      if (node->occupied[slot_value]) {
+        value = &node->values[slot_value];
+      }
+#else
       found = node->occupied[slot_value];
+#endif
       break;
     }
     else {
@@ -315,5 +336,9 @@ static B32 steady_trie_search(Steady_Trie_Node *root, Steady_Trie_Key key) {
     }
   }
 
+#if Steady_Trie_Use_Key_Value_Pair
+  return value;
+#else
   return found;
+#endif
 }
