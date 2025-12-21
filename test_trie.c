@@ -45,11 +45,15 @@ static void SetPcgSeed(pcg32_random_t *Rng, B32 Nondeterministic, U32 Rounds)
 
 
 
-static B32
-steady_trie_ensure_key_has_occupation(Steady_Trie_Node *root, Steady_Trie_Key key, B32 occupation) {
+static B32 steady_trie_ensure_key_has_occupation(
+  Arena *arena,
+  Steady_Trie *trie,
+  Steady_Trie_Key key,
+  B32 occupation
+  ) {
   B32 errors = 0;
 #if Steady_Trie_Use_Key_Value_Pair
-  Steady_Trie_Edit_Result search_result = steady_trie_search(root, key);
+  Steady_Trie_Edit_Result search_result = steady_trie_search(arena, trie, key);
   Steady_Trie_Value_Type *value = search_result.value;
 
   if (occupation && !value) {
@@ -65,7 +69,7 @@ steady_trie_ensure_key_has_occupation(Steady_Trie_Node *root, Steady_Trie_Key ke
     errors = 1;
   }
 #else
-  Steady_Trie_Edit_Result search_result = steady_trie_search(root, key);
+  Steady_Trie_Edit_Result search_result = steady_trie_search(arena, trie, key);
 
   if (search_result.found != occupation) {
     printf("[ Error ] Expected key %llu to have occupation %d but it has occupation %d\n", (U64)key, occupation, search_result.found);
@@ -78,7 +82,7 @@ steady_trie_ensure_key_has_occupation(Steady_Trie_Node *root, Steady_Trie_Key ke
 
 static U32 steady_trie_run_tests(void) {
   Arena *arena = arena_alloc_reserve(Steady_Trie_Test_Arena_Size, 0);
-  Steady_Trie_Node *root = arena_push(arena, sizeof(Steady_Trie_Node));
+  Steady_Trie *trie = steady_trie_create_trie(arena);
   U32 error_count = 0;
 
   U64 a = 189;
@@ -102,23 +106,23 @@ static U32 steady_trie_run_tests(void) {
   printf("Inserting keys...\n");
   for (U32 i = 0; i < ArrayCount(keys_to_add); ++i) {
 #if Steady_Trie_Use_Key_Value_Pair
-    steady_trie_set(arena, root, keys_to_add[i], Steady_Trie_Default_Value);
+    steady_trie_set(arena, trie, keys_to_add[i], Steady_Trie_Default_Value);
 #else
-    steady_trie_insert(arena, root, keys_to_add[i]);
+    steady_trie_insert(arena, trie, keys_to_add[i]);
 #endif
   }
 
   printf("Checking key occupancy...\n");
-  error_count += steady_trie_ensure_key_has_occupation(root, a, 1);
-  error_count += steady_trie_ensure_key_has_occupation(root, b, 1);
-  error_count += steady_trie_ensure_key_has_occupation(root, c, 1);
-  error_count += steady_trie_ensure_key_has_occupation(root, d, 1);
-  error_count += steady_trie_ensure_key_has_occupation(root, e, 0);
-  error_count += steady_trie_ensure_key_has_occupation(root, f, 0);
+  error_count += steady_trie_ensure_key_has_occupation(arena, trie, a, 1);
+  error_count += steady_trie_ensure_key_has_occupation(arena, trie, b, 1);
+  error_count += steady_trie_ensure_key_has_occupation(arena, trie, c, 1);
+  error_count += steady_trie_ensure_key_has_occupation(arena, trie, d, 1);
+  error_count += steady_trie_ensure_key_has_occupation(arena, trie, e, 0);
+  error_count += steady_trie_ensure_key_has_occupation(arena, trie, f, 0);
 
   printf("Checking iterated keys...\n");
   U32 match_count = 0;
-  Steady_Trie_Iterate(iter_name, arena, root) {
+  Steady_Trie_Iterate(iter_name, arena, trie->roots.first->node) {
     B32 match = 0;
     for (U32 i = 0; i < ArrayCount(keys_to_add); ++i) {
       if (iter_name->key == keys_to_add[i]) {
@@ -139,12 +143,12 @@ static U32 steady_trie_run_tests(void) {
 
   printf("Deleting keys...\n");
   for (U32 i = 0; i < ArrayCount(keys_to_delete); ++i) {
-    steady_trie_delete(root, keys_to_delete[i]);
+    steady_trie_delete(arena, trie, keys_to_delete[i]);
   }
 
   printf("Checking iterated keys...\n");
   match_count = 0;
-  Steady_Trie_Iterate(iter_name, arena, root) {
+  Steady_Trie_Iterate(iter_name, arena, trie->roots.first->node) {
     B32 to_add_match = 0;
     for (U32 i = 0; i < ArrayCount(keys_to_add); ++i) {
       if (iter_name->key == keys_to_add[i]) {
@@ -201,9 +205,10 @@ static void steady_trie_print_key_efficiency(Arena *arena, U64 key_count) {
   printf("Percent memory used for keys %.2f%%\n", (F32)raw_key_size/(F32)arena_pos);
 }
 
+
 static void steady_trie_sequential_keys_test(void) {
   Arena *arena = arena_alloc_reserve(Steady_Trie_Test_Arena_Size, 0);
-  Steady_Trie_Node *root = arena_push(arena, sizeof(Steady_Trie_Node));
+  Steady_Trie *trie = steady_trie_create_trie(arena);
 
   U64 key_count = 5000;
 
@@ -212,7 +217,7 @@ static void steady_trie_sequential_keys_test(void) {
 #if Steady_Trie_Use_Key_Value_Pair
     steady_trie_set(arena, root, i, Steady_Trie_Default_Value);
 #else
-    steady_trie_insert(arena, root, i);
+    steady_trie_insert(arena, trie, i);
 #endif
   }
 
@@ -223,7 +228,7 @@ static void steady_trie_sequential_keys_test(void) {
 static void steady_trie_random_32bit_keys_test(void) {
   Arena *arena = arena_alloc_reserve(Steady_Trie_Test_Arena_Size, 0);
   SetPcgSeed(&Steady_Rng, 1, 1);
-  Steady_Trie_Node *root = arena_push(arena, sizeof(Steady_Trie_Node));
+  Steady_Trie *trie = steady_trie_create_trie(arena);
 
   U64 key_count = 5000;
 
@@ -233,7 +238,7 @@ static void steady_trie_random_32bit_keys_test(void) {
 #if Steady_Trie_Use_Key_Value_Pair
     steady_trie_set(arena, root, random_key, Steady_Trie_Default_Value);
 #else
-    steady_trie_insert(arena, root, random_key);
+    steady_trie_insert(arena, trie, random_key);
 #endif
   }
 
@@ -243,7 +248,7 @@ static void steady_trie_random_32bit_keys_test(void) {
 
 static void steady_trie_malloc_pointers_test(void) {
   Arena *arena = arena_alloc_reserve(Steady_Trie_Test_Arena_Size, 0);
-  Steady_Trie_Node *root = arena_push(arena, sizeof(Steady_Trie_Node));
+  Steady_Trie *trie = steady_trie_create_trie(arena);
 
   U64 key_count = 5000;
   U32 malloc_size = 16;
@@ -254,7 +259,7 @@ static void steady_trie_malloc_pointers_test(void) {
 #if Steady_Trie_Use_Key_Value_Pair
     steady_trie_set(arena, root, (U64)pointer, Steady_Trie_Default_Value);
 #else
-    steady_trie_insert(arena, root, (U64)pointer);
+    steady_trie_insert(arena, trie, (U64)pointer);
 #endif
   }
 
