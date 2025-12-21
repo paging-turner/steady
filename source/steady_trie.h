@@ -154,6 +154,26 @@ typedef struct Steady_Trie {
 } Steady_Trie;
 
 
+typedef enum {
+  Steady_Trie_Edit_Insert,
+  Steady_Trie_Edit_Delete,
+  Steady_Trie_Edit_Search,
+} Steady_Trie_Edit_Kind;
+
+typedef enum {
+  Steady_Trie_Edit_Result_Key,
+  Steady_Trie_Edit_Result_Value,
+} Steady_Trie_Edit_Result_Kind;
+
+typedef struct Steady_Trie_Edit_Result {
+  Steady_Trie_Edit_Result_Kind kind;
+  union {
+    B32 found;
+    Steady_Trie_Value_Type *value;
+  };
+} Steady_Trie_Edit_Result;
+
+
 
 static Steady_Trie_Stack_Node *
 steady_trie_create_stack_node(Arena *arena, Steady_Trie_Stack_Node *free_stack) {
@@ -288,28 +308,45 @@ static void steady_trie_print_trie_as_dot_file(Arena *arena, Steady_Trie_Node *r
 }
 
 
-#if Steady_Trie_Use_Key_Value_Pair
-static void steady_trie_set(Arena *arena, Steady_Trie_Node *root, Steady_Trie_Key key, Steady_Trie_Value_Type value) {
-#else
-static void steady_trie_insert(Arena *arena, Steady_Trie_Node *root, Steady_Trie_Key key) {
-#endif
+
+
+static Steady_Trie_Edit_Result
+steady_trie_edit(Arena *arena,
+                 Steady_Trie_Node *root,
+                 Steady_Trie_Key key,
+                 Steady_Trie_Value_Type value,
+                 Steady_Trie_Edit_Kind edit_kind) {
+  Steady_Trie_Edit_Result result = (Steady_Trie_Edit_Result){0};
   Steady_Trie_Node *node = root;
 
   for (U32 d = 0; (d < Steady_Trie_Max_Depth) && node; ++d) {
-    // TODO: We could/should iteratively figure out the mask by shifting/masking an accumulated value.
     Steady_Trie_Slot_Type slot_value = Steady_Trie_Get_Slot_Value(key, d);
     Assert(slot_value >= 0 && slot_value <= Steady_Trie_Single_Slot_Mask);
 
     if (Steady_Trie_Is_Key_At_Final_Depth(key, d)) {
-      node->occupied[slot_value] = 1;
+      if (edit_kind == Steady_Trie_Edit_Insert) {
+        node->occupied[slot_value] = 1;
 #if Steady_Trie_Use_Key_Value_Pair
-      node->values[slot_value] = value;
+        node->values[slot_value] = value;
 #endif
+      }
+      else if (edit_kind == Steady_Trie_Edit_Delete) {
+        node->occupied[slot_value] = 0;
+      }
+      else if (edit_kind == Steady_Trie_Edit_Search) {
+#if Steady_Trie_Use_Key_Value_Pair
+        if (node->occupied[slot_value]) {
+          result.value = &node->values[slot_value];
+        }
+#else
+        result.found = node->occupied[slot_value] ? 1 : 0;
+#endif
+      }
       break;
     }
     else {
-      // Add new node
-      if (node->slots[slot_value] == 0) {
+      if (edit_kind == Steady_Trie_Edit_Insert && node->slots[slot_value] == 0) {
+        // Add new node
         node->slots[slot_value] = arena_push(arena, sizeof(Steady_Trie_Node));
       }
 
@@ -317,62 +354,26 @@ static void steady_trie_insert(Arena *arena, Steady_Trie_Node *root, Steady_Trie
       node = node->slots[slot_value];
     }
   }
+
+  return result;
 }
 
 
-static void steady_trie_delete(Steady_Trie_Node *root, Steady_Trie_Key key) {
-  Steady_Trie_Node *node = root;
 
-  for (U32 d = 0; (d < Steady_Trie_Max_Depth) && node; ++d) {
-    // TODO: We could/should iteratively figure out the mask by shifting/masking an accumulated value.
-    Steady_Trie_Slot_Type slot_value = Steady_Trie_Get_Slot_Value(key, d);
-    Assert(slot_value >= 0 && slot_value <= Steady_Trie_Single_Slot_Mask);
+#if Steady_Trie_Use_Key_Value_Pair
+static Steady_Trie_Edit_Result steady_trie_set(Arena *arena, Steady_Trie_Node *root, Steady_Trie_Key key, Steady_Trie_Value_Type value) {
+  return steady_trie_edit(arena, root, key, value, Steady_Trie_Edit_Insert);
+}
+#else
+static Steady_Trie_Edit_Result steady_trie_insert(Arena *arena, Steady_Trie_Node *root, Steady_Trie_Key key) {
+  return steady_trie_edit(arena, root, key, 0, Steady_Trie_Edit_Insert);
+}
+#endif
 
-    if (Steady_Trie_Is_Key_At_Final_Depth(key, d)) {
-      node->occupied[slot_value] = 0;
-      break;
-    }
-    else {
-      // Descend
-      node = node->slots[slot_value];
-    }
-  }
+static Steady_Trie_Edit_Result steady_trie_delete(Steady_Trie_Node *root, Steady_Trie_Key key) {
+  return steady_trie_edit(0, root, key, 0, Steady_Trie_Edit_Delete);
 }
 
-
-#if Steady_Trie_Use_Key_Value_Pair
-static Steady_Trie_Value_Type *steady_trie_search(Steady_Trie_Node *root, Steady_Trie_Key key) {
-  Steady_Trie_Value_Type *value = 0;
-#else
-static B32 steady_trie_search(Steady_Trie_Node *root, Steady_Trie_Key key) {
-  B32 found = 0;
-#endif
-  Steady_Trie_Node *node = root;
-
-  for (U32 d = 0; (d < Steady_Trie_Max_Depth) && node; ++d) {
-    // TODO: We could/should iteratively figure out the mask by shifting/masking an accumulated value.
-    Steady_Trie_Slot_Type slot_value = Steady_Trie_Get_Slot_Value(key, d);
-    Assert(slot_value >= 0 && slot_value <= Steady_Trie_Single_Slot_Mask);
-
-    if (Steady_Trie_Is_Key_At_Final_Depth(key, d)) {
-#if Steady_Trie_Use_Key_Value_Pair
-      if (node->occupied[slot_value]) {
-        value = &node->values[slot_value];
-      }
-#else
-      found = node->occupied[slot_value];
-#endif
-      break;
-    }
-    else {
-      // Descend
-      node = node->slots[slot_value];
-    }
-  }
-
-#if Steady_Trie_Use_Key_Value_Pair
-  return value;
-#else
-  return found;
-#endif
+static Steady_Trie_Edit_Result steady_trie_search(Steady_Trie_Node *root, Steady_Trie_Key key) {
+  return steady_trie_edit(0, root, key, 0, Steady_Trie_Edit_Search);
 }

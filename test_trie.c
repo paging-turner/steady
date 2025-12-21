@@ -9,7 +9,7 @@
 #include "libraries/pcg/pcg_basic.c"
 
 #if 1
-# define Steady_Trie_Use_Key_Value_Pair 1
+# define Steady_Trie_Use_Key_Value_Pair 0
 # define Steady_Trie_Value_Type U64
 # define Steady_Trie_Default_Value 42LLU
 # define Steady_Trie_Values_Equal(x, y)  ((x) == (y))
@@ -49,7 +49,8 @@ static B32
 steady_trie_ensure_key_has_occupation(Steady_Trie_Node *root, Steady_Trie_Key key, B32 occupation) {
   B32 errors = 0;
 #if Steady_Trie_Use_Key_Value_Pair
-  Steady_Trie_Value_Type *value = steady_trie_search(root, key);
+  Steady_Trie_Edit_Result search_result = steady_trie_search(root, key);
+  Steady_Trie_Value_Type *value = search_result.value;
 
   if (occupation && !value) {
     printf("[ Error ] Null value at key %llu\n", (U64)key);
@@ -64,10 +65,10 @@ steady_trie_ensure_key_has_occupation(Steady_Trie_Node *root, Steady_Trie_Key ke
     errors = 1;
   }
 #else
-  B32 exists = steady_trie_search(root, key);
+  Steady_Trie_Edit_Result search_result = steady_trie_search(root, key);
 
-  if (exists != occupation) {
-    printf("[ Error ] Expected key %llu to have occupation %d but it has occupation %d\n", (U64)key, occupation, exists);
+  if (search_result.found != occupation) {
+    printf("[ Error ] Expected key %llu to have occupation %d but it has occupation %d\n", (U64)key, occupation, search_result.found);
     errors = 1;
   }
 #endif
