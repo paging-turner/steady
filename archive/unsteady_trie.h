@@ -1,4 +1,8 @@
 /*
+  This is an archived version of the (radix/prefix) trie that is *not* persistent.
+*/
+
+/*
   The structure is meant to hold 64-bit keys, allowing for insertion, deletion, and searching.
   It is best if the keys are relatively sequential, otherwise it will *not* be memory efficient.
 
@@ -69,8 +73,8 @@ typedef U8 Steady_Trie_Slot_Type;
 # define Steady_Trie_Get_Slot_Shift(depth)\
   (depth)
 
-# define Steady_Trie_Get_Next_Iter_Key_Chunk(key, key_shift, index)\
-  (((key) << Steady_Trie_Slot_Bits) | ((index)-1))
+# define Steady_Trie_Get_Initial_Iter_Key_Chunk(index)\
+  (index)
 #else
 # define Steady_Trie_Slot_Mask(depth)\
   (~(max_U64<<(((Steady_Trie_Max_Depth-1)-depth)*Steady_Trie_Slot_Bits)))
@@ -78,12 +82,18 @@ typedef U8 Steady_Trie_Slot_Type;
 # define Steady_Trie_Get_Slot_Shift(depth)\
   ((Steady_Trie_Max_Depth-1)-(depth))
 
-# define Steady_Trie_Get_Next_Iter_Key_Chunk(key, key_shift, index)\
-  ((key) | ((U64)((index)-1) << ((key_shift)*Steady_Trie_Slot_Bits)))
+# define Steady_Trie_Get_Initial_Iter_Key_Chunk(index)\
+  (index)
 #endif // Steady_Trie_Root_Is_Lowest_Significant_Byte
 
-#define Steady_Trie_Get_Initial_Iter_Key_Chunk(index)\
-  (index)
+#if Steady_Trie_Root_Is_Lowest_Significant_Byte
+# define Steady_Trie_Get_Next_Iter_Key_Chunk(key, key_shift, index)\
+  (((key) << Steady_Trie_Slot_Bits) | ((index)-1))
+#else
+# define Steady_Trie_Get_Next_Iter_Key_Chunk(key, key_shift, index)\
+  ((key) | ((U64)((index)-1) << ((key_shift)*Steady_Trie_Slot_Bits)))
+#endif
+
 
 #define Steady_Trie_Get_Slot_Value(key, depth)\
   (((key) >> (Steady_Trie_Get_Slot_Shift(depth)*Steady_Trie_Slot_Bits)) &\
@@ -94,7 +104,6 @@ typedef U8 Steady_Trie_Slot_Type;
 
 #define Steady_Trie_Is_Key_At_Final_Depth(key, depth)\
   (Steady_Trie_Is_Max_Depth(depth) || ((Steady_Trie_Slot_Mask(depth) & key) == 0))
-
 
 
 ////////////////////////////
@@ -142,16 +151,6 @@ typedef struct Steady_Trie_Iterator {
   Steady_Trie_Key key;
 } Steady_Trie_Iterator;
 
-typedef struct Steady_Trie_Root_Stack {
-  Steady_Trie_Node *root;
-  struct Steady_Trie_Root_Stack *next;
-  struct Steady_Trie_Root_Stack *prev;
-} Steady_Trie_Root_Stack;
-
-typedef struct Steady_Trie {
-  Steady_Trie_Root_Stack *roots;
-  Steady_Trie_Node *current_root;
-} Steady_Trie;
 
 
 
@@ -163,10 +162,10 @@ steady_trie_create_stack_node(Arena *arena, Steady_Trie_Stack_Node *free_stack) 
   return node;
 }
 
-static void
-steady_trie_delete_stack_node(Arena *arena, Steady_Trie_Stack_Node *free_stack, Steady_Trie_Stack_Node *node) {
-  // TODO: Implement and use
-}
+#define Steady_Trie_Iter_Key_Shift  1
+
+#define Steady_Trie_Get_Next_Iter_Key_Shift(key_shift)\
+  ((key_shift) + 1)
 
 static void steady_trie_iter_next(Steady_Trie_Iterator *iter) {
   // Do a depth-first search until we find the next occupied key.
@@ -175,25 +174,23 @@ static void steady_trie_iter_next(Steady_Trie_Iterator *iter) {
       if (iter->stack->index < Steady_Trie_Slot_Count) {
         B32 not_visited = ((iter->stack->visited_plus_one == 0) ||
                            (iter->stack->visited_plus_one-1 < iter->stack->index));
-        B32 occupied = iter->stack->node->occupied[iter->stack->index];
-        if (occupied && not_visited) {
-          // NOTE: key_shift is only used for when the root is the most-significant byte.
-          U32 key_shift = 1;
+        if (iter->stack->node->occupied[iter->stack->index] && not_visited) {
+          U32 key_shift = Steady_Trie_Iter_Key_Shift;
           U64 key = Steady_Trie_Get_Initial_Iter_Key_Chunk(iter->stack->index);
+          // NOTE: key_shift is only used for when the root is the most-significant byte.
           // Build up the key value by collecting all the indices on the stack.
           for (Steady_Trie_Stack_Node *stack_node = iter->stack->next;
                stack_node != 0;
                stack_node = stack_node->next) {
             // NOTE: All of the nodes in the stack, aside from the current one, have had their indices iterated, so we need to subtract one from them. (This is alway why we do not process the current stack-node in the loop.)
             key = Steady_Trie_Get_Next_Iter_Key_Chunk(key, key_shift, stack_node->index);
-            key_shift += 1;
+            key_shift = Steady_Trie_Get_Next_Iter_Key_Shift(key_shift);
           }
           iter->key = key;
           iter->stack->visited_plus_one = iter->stack->index+1;
           break;
         }
         else if (iter->stack->node->slots[iter->stack->index]) {
-          // Child slot is present, so descend.
           // TODO: Recycle free stack-nodes!!!!!
           Steady_Trie_Node *next_node = iter->stack->node->slots[iter->stack->index];
           Steady_Trie_Stack_Node *new_stack_node = arena_push(iter->arena, sizeof(Steady_Trie_Stack_Node));
@@ -206,12 +203,10 @@ static void steady_trie_iter_next(Steady_Trie_Iterator *iter) {
         }
       }
       else {
-        // Reached the end of the current node's slots, so go back up.
         SLLStackPop(iter->stack); // TODO: Recycle stack-nodes!!!!!!!!
       }
     }
     else {
-      // The iter-stack or the stack's node is empty, so bail.
       break;
     }
   }
@@ -253,38 +248,13 @@ static void steady_trie_print_trie(Arena *arena, Steady_Trie_Node *root) {
 }
 
 
-static void steady_trie_print_trie_as_dot_file(Arena *arena, Steady_Trie_Node *root) {
+static void steady_trie_print_trie_as_dot_file(Steady_Trie_Node *root) {
   // TODO: Use it or lose it.
-  printf("\n\ndigraph G {\n");
-  printf("rankdir=\"LR\";\n");
-  Steady_Trie_Iterator *iter = steady_trie_iter_init(arena, root);
-
-  for (;;) {
-    if (iter->stack && iter->stack->node) {
-      if (iter->stack->index < Steady_Trie_Slot_Count) {
-        if (iter->stack->node->slots[iter->stack->index]) {
-          // TODO: Recycle free stack-nodes!!!!!
-          Steady_Trie_Node *next_node = iter->stack->node->slots[iter->stack->index];
-          Steady_Trie_Stack_Node *new_stack_node = arena_push(iter->arena, sizeof(Steady_Trie_Stack_Node));
-          iter->stack->index += 1;
-          new_stack_node->node = next_node;
-          printf("%llu->%llu;\n", (U64)iter->stack->node, (U64)new_stack_node->node);
-          SLLStackPush(iter->stack, new_stack_node);
-        }
-        else {
-          iter->stack->index += 1;
-        }
-      }
-      else {
-        SLLStackPop(iter->stack); // TODO: Recycle stack-nodes!!!!!!!!
-      }
-    }
-    else {
-      break;
-    }
+  printf("digraph G {\n");
+  {
+    printf("%p;\n", root);
   }
-
-  printf("}\n\n\n");
+  printf("}\n");
 }
 
 
