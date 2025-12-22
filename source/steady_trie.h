@@ -120,7 +120,7 @@ typedef U8 Steady_Trie(Slot_Type);
 #define Steady_Trie_Is_Key_At_Final_Depth(key, depth)\
   (Steady_Trie_Is_Max_Depth(depth) || ((Steady_Trie_Slot_Mask(depth) & key) == 0))
 
-#define function static
+#define Steady_Function static
 
 
 ////////////////////////////
@@ -215,7 +215,7 @@ typedef struct Steady_Trie(Edit_Result) {
 
 
 
-function Steady_Trie(Stack_Node) *
+Steady_Function Steady_Trie(Stack_Node) *
 steady_trie(create_stack_node)(Arena *arena, Steady_Trie(Stack_Node) *free_stack) {
   Steady_Trie(Stack_Node) *node = 0;
   // TODO: Implement and use
@@ -223,12 +223,12 @@ steady_trie(create_stack_node)(Arena *arena, Steady_Trie(Stack_Node) *free_stack
   return node;
 }
 
-function void
+Steady_Function void
 steady_trie(delete_stack_node)(Arena *arena, Steady_Trie(Stack_Node) *free_stack, Steady_Trie(Stack_Node) *node) {
   // TODO: Implement and use
 }
 
-function void steady_trie(iter_next)(Steady_Trie(Iterator) *iter) {
+Steady_Function void steady_trie(iter_next)(Steady_Trie(Iterator) *iter) {
   // Do a depth-first search until we find the next occupied key.
   for (;;) {
     if (iter->stack && iter->stack->node) {
@@ -278,7 +278,7 @@ function void steady_trie(iter_next)(Steady_Trie(Iterator) *iter) {
 }
 
 
-function Steady_Trie(Iterator) *steady_trie(iter_init)(
+Steady_Function Steady_Trie(Iterator) *steady_trie(iter_init)(
   Arena *arena,
   Steady_Trie(Node) *root
   ) {
@@ -297,7 +297,7 @@ function Steady_Trie(Iterator) *steady_trie(iter_init)(
 }
 
 
-function B32 steady_trie(iter_test)(Steady_Trie(Iterator) *iter) {
+Steady_Function B32 steady_trie(iter_test)(Steady_Trie(Iterator) *iter) {
   return iter && iter->stack;
 }
 
@@ -309,7 +309,7 @@ function B32 steady_trie(iter_test)(Steady_Trie(Iterator) *iter) {
        steady_trie(iter_next)(iter_name))
 
 
-function void steady_trie(print_trie)(Arena *arena, Steady_Trie(Node) *root) {
+Steady_Function void steady_trie(print_trie)(Arena *arena, Steady_Trie(Node) *root) {
   printf("trie %p\n", root);
   Steady_Trie_Iterate(iter_name, arena, root) {
     printf("  key %llu\n", (U64)iter_name->key);
@@ -320,7 +320,7 @@ function void steady_trie(print_trie)(Arena *arena, Steady_Trie(Node) *root) {
 
 
 
-function void steady_trie(new_root_with_keys)(
+Steady_Function void steady_trie(new_root_with_keys)(
   Arena *arena,
   Steady_Trie(Trie) *trie,
   Steady_Trie(Key) *keys,
@@ -390,7 +390,7 @@ function void steady_trie(new_root_with_keys)(
 }
 
 
-function void steady_trie(new_root)(
+Steady_Function void steady_trie(new_root)(
   Arena *arena,
   Steady_Trie(Trie) *trie,
   Steady_Trie(Key) key
@@ -400,7 +400,7 @@ function void steady_trie(new_root)(
 }
 
 
-function Steady_Trie(Edit_Result) steady_trie(edit)(
+Steady_Function Steady_Trie(Edit_Result) steady_trie(edit)(
   Arena *arena,
   Steady_Trie(Trie) *trie,
   Steady_Trie(Key) key,
@@ -455,7 +455,7 @@ function Steady_Trie(Edit_Result) steady_trie(edit)(
 
 
 #if Steady_Trie_Use_Key_Value_Pair
-function Steady_Trie(Edit_Result) steady_trie(set)(
+Steady_Function Steady_Trie(Edit_Result) steady_trie(set)(
   Arena *arena,
   Steady_Trie(Trie) *trie,
   Steady_Trie(Key) key,
@@ -464,7 +464,7 @@ function Steady_Trie(Edit_Result) steady_trie(set)(
   return steady_trie(edit)(arena, trie, key, value, Steady_Trie(Edit_Insert));
 }
 #else
-function Steady_Trie(Edit_Result) steady_trie(insert)(
+Steady_Function Steady_Trie(Edit_Result) steady_trie(insert)(
   Arena *arena,
   Steady_Trie(Trie) *trie,
   Steady_Trie(Key) key
@@ -473,7 +473,7 @@ function Steady_Trie(Edit_Result) steady_trie(insert)(
 }
 #endif
 
-function Steady_Trie(Edit_Result) steady_trie(delete)(
+Steady_Function Steady_Trie(Edit_Result) steady_trie(delete)(
   Arena *arena,
   Steady_Trie(Trie) *trie,
   Steady_Trie(Key) key
@@ -481,7 +481,7 @@ function Steady_Trie(Edit_Result) steady_trie(delete)(
   return steady_trie(edit)(arena, trie, key, 0, Steady_Trie(Edit_Delete));
 }
 
-function Steady_Trie(Edit_Result) steady_trie(search)(
+Steady_Function Steady_Trie(Edit_Result) steady_trie(search)(
   Arena *arena,
   Steady_Trie(Trie) *trie,
   Steady_Trie(Key) key
@@ -490,7 +490,7 @@ function Steady_Trie(Edit_Result) steady_trie(search)(
 }
 
 
-function Steady_Trie(Trie) *steady_trie(create_trie)(Arena *arena) {
+Steady_Function Steady_Trie(Trie) *steady_trie(create_trie)(Arena *arena) {
   Steady_Trie(Trie) *trie = arena_push(arena, sizeof(Steady_Trie(Trie)));
   Steady_Trie(Node) *node = arena_push(arena, sizeof(Steady_Trie(Node)));
   Steady_Trie(Root) *root = arena_push(arena, sizeof(Steady_Trie(Root)));
@@ -517,7 +517,7 @@ function Steady_Trie(Trie) *steady_trie(create_trie)(Arena *arena) {
 
 
 
-function void steady_trie(undo)(Steady_Trie(Trie) *trie) {
+Steady_Function void steady_trie(undo)(Steady_Trie(Trie) *trie) {
   if (trie->current_root->prev_edit != 0) {
     trie->current_root = trie->current_root->prev_edit;
   }
@@ -569,9 +569,21 @@ void steady_trie(redo)(Steady_Trie(Trie) *trie) {
 ////////////////////////////////////////
 // Undefining Settings (see Settings) //
 ////////////////////////////////////////
-#undef Steady_Trie_
 #undef Steady_Trie
+#undef steady_trie
 #undef Steady_Trie_Key_Bits
 #undef Steady_Trie_Slot_Bits
 #undef Steady_Trie_Root_Is_Lowest_Significant_Byte
 #undef Steady_Trie_Use_Key_Value_Pair
+
+#undef Steady_Trie_Slot_Mask
+#undef Steady_Trie_Get_Slot_Shift
+#undef Steady_Trie_Get_Next_Iter_Key_Chunk
+#undef Steady_Trie_Slot_Mask
+#undef Steady_Trie_Get_Slot_Shift
+#undef Steady_Trie_Get_Next_Iter_Key_Chunk
+#undef Steady_Trie_Get_Initial_Iter_Key_Chunk
+#undef Steady_Trie_Get_Slot_Value
+#undef Steady_Trie_Is_Max_Depth
+#undef Steady_Trie_Is_Key_At_Final_Depth
+#undef Steady_Function

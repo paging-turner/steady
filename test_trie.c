@@ -9,7 +9,6 @@
 #include "libraries/pcg/pcg_basic.c"
 
 
-
 #define Steady_Trie(ident)  Trie_A_##ident
 #define steady_trie(ident)  trie_a_##ident
 #define Steady_Trie_Key_Bits 64
@@ -17,6 +16,17 @@
 #define Steady_Trie_Root_Is_Lowest_Significant_Byte 1
 #define Steady_Trie_Use_Key_Value_Pair 0
 #include "source/steady_trie.h"
+
+
+
+#define Steady_Trie(ident)  Trie_B_##ident
+#define steady_trie(ident)  trie_b_##ident
+#define Steady_Trie_Key_Bits 64
+#define Steady_Trie_Slot_Bits 2
+#define Steady_Trie_Root_Is_Lowest_Significant_Byte 0
+#define Steady_Trie_Use_Key_Value_Pair 0
+#include "source/steady_trie.h"
+
 
 
 #define Steady_Trie_Test_Arena_Size  (50*1024*1024)
@@ -354,6 +364,8 @@ static void steady_trie_print_struct_sizes(Trie_A_Trie *trie) {
   printf("sizeof(Trie_A_Stack_Node) %zu\n", sizeof(Trie_A_Stack_Node));
   printf("sizeof(Trie_A_Iterator  ) %zu\n", sizeof(Trie_A_Iterator  ));
 }
+
+
 
 
 
