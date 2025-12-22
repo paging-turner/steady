@@ -7,7 +7,11 @@
  TODO:
    [ ] Figure out a better name than just "trie", since "trie" is too generic.
    [ ] Use memory pool for stack-nodes
-   [ ] Make persistant
+   [-] Make persistant
+     [x] Undo
+     [x] Simple Redo
+     [ ] Redo alternate branches
+   [ ] Allow for identifier renaming (for constructing multiple types of trie)
    [x] Allow configuration to store keys least-to-most significant byte or most-to-least.
    [x] Right now the keys are the values, but we probably want the option of having key/value pairs.
    [ ] BUG: Steady_Trie_Slot_Bits == 2  and  Steady_Trie_Root_Is_Lowest_Significant_Byte == 0 causes errors.
@@ -52,8 +56,12 @@ typedef U8 Steady_Trie_Slot_Type;
 ////////////////////////////
 // Computed Properties
 ////////////////////////////
-#define Steady_Trie_Slot_Count (1 << Steady_Trie_Slot_Bits)
-#define Steady_Trie_Max_Depth (Steady_Trie_Key_Bits / Steady_Trie_Slot_Bits)
+#define Steady_Trie_Slot_Count\
+  (1 << Steady_Trie_Slot_Bits)
+
+#define Steady_Trie_Max_Depth\
+  (Steady_Trie_Key_Bits / Steady_Trie_Slot_Bits)
+
 // TODO: The names for Steady_Trie_Single_Slot_Mask and Steady_Trie_Slot_Mask are confusing. Should probably rename!
 #define Steady_Trie_Single_Slot_Mask\
   ((1<<Steady_Trie_Slot_Bits)-1)
@@ -109,10 +117,11 @@ StaticAssert((8*sizeof(Steady_Trie_Slot_Type) >= Steady_Trie_Slot_Bits),
 StaticAssert((8*sizeof(Steady_Trie_Key) == Steady_Trie_Key_Bits),
              Ensure_Key_Type_Equals_Key_Bits);
 
-#if Steady_Trie_Use_Key_Value_Pair
-# ifndef Steady_Trie_Value_Type
-#  error When using Steady_Trie_Use_Key_Value_Pair, Steady_Trie_Value_Type must also be defined.
+#ifndef Steady_Trie_Value_Type
+# if Steady_Trie_Use_Key_Value_Pair
+#  warning When using Steady_Trie_Use_Key_Value_Pair, Steady_Trie_Value_Type must also be defined, setting the type to be U64.
 # endif
+# define Steady_Trie_Value_Type U64
 #endif
 
 
@@ -473,6 +482,28 @@ static void steady_trie_undo(Steady_Trie *trie) {
     trie->current_root = trie->current_root->prev_edit;
   }
   else if (trie->current_root->prev_branch != 0) {
-    trie->current_root = trie->current_root->prev_branch;
+    // @Speed
+    Steady_Trie_Root *first_branch = trie->current_root;
+    for (;first_branch->prev_branch != 0;) {
+      first_branch = first_branch->prev_branch;
+    }
+
+    trie->current_root = first_branch;
+  }
+}
+
+
+static void steady_trie_redo(Steady_Trie *trie) {
+  // TODO: Allow for redoing other branches.
+  if (trie->current_root->next_branch != 0) {
+    // @Speed
+    Steady_Trie_Root *last_branch = trie->current_root;
+    for (;last_branch->next_branch != 0;) {
+      last_branch = last_branch->next_branch;
+    }
+    trie->current_root = last_branch;
+  }
+  else if (trie->current_root->next_edit != 0) {
+    trie->current_root = trie->current_root->next_edit;
   }
 }

@@ -9,7 +9,7 @@
 #include "libraries/pcg/pcg_basic.c"
 
 #if 1
-# define Steady_Trie_Use_Key_Value_Pair 0
+# define Steady_Trie_Use_Key_Value_Pair 1
 # define Steady_Trie_Value_Type U64
 # define Steady_Trie_Default_Value 42LLU
 # define Steady_Trie_Values_Equal(x, y)  ((x) == (y))
@@ -228,6 +228,18 @@ static U32 steady_trie_run_tests(void) {
     error_count += steady_trie_ensure_key_has_occupation(arena, trie, f, 0);
   }
 
+  printf("Redo one delete...\n");
+  steady_trie_redo(trie);
+
+  {
+    printf("Checking key occupancy...\n");
+    error_count += steady_trie_ensure_key_has_occupation(arena, trie, a, 1);
+    error_count += steady_trie_ensure_key_has_occupation(arena, trie, b, 0);
+    error_count += steady_trie_ensure_key_has_occupation(arena, trie, c, 1);
+    error_count += steady_trie_ensure_key_has_occupation(arena, trie, d, 1);
+    error_count += steady_trie_ensure_key_has_occupation(arena, trie, e, 0);
+    error_count += steady_trie_ensure_key_has_occupation(arena, trie, f, 0);
+  }
 
   printf("==================\n");
   printf("== End of tests ==\n");
@@ -265,7 +277,7 @@ static void steady_trie_sequential_keys_test(void) {
   printf("Inserted %llu sequential keys...\n", key_count);
   for (U32 i = 0; i < key_count; ++i) {
 #if Steady_Trie_Use_Key_Value_Pair
-    steady_trie_set(arena, root, i, Steady_Trie_Default_Value);
+    steady_trie_set(arena, trie, i, Steady_Trie_Default_Value);
 #else
     steady_trie_insert(arena, trie, i);
 #endif
@@ -286,7 +298,7 @@ static void steady_trie_random_32bit_keys_test(void) {
   for (U32 i = 0; i < key_count; ++i) {
     U64 random_key = pcg32_boundedrand_r(&Steady_Rng, max_U32);
 #if Steady_Trie_Use_Key_Value_Pair
-    steady_trie_set(arena, root, random_key, Steady_Trie_Default_Value);
+    steady_trie_set(arena, trie, random_key, Steady_Trie_Default_Value);
 #else
     steady_trie_insert(arena, trie, random_key);
 #endif
@@ -307,7 +319,7 @@ static void steady_trie_malloc_pointers_test(void) {
   for (U32 i = 0; i < key_count; ++i) {
     U8 *pointer = malloc(malloc_size);
 #if Steady_Trie_Use_Key_Value_Pair
-    steady_trie_set(arena, root, (U64)pointer, Steady_Trie_Default_Value);
+    steady_trie_set(arena, trie, (U64)pointer, Steady_Trie_Default_Value);
 #else
     steady_trie_insert(arena, trie, (U64)pointer);
 #endif
