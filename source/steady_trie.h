@@ -26,14 +26,26 @@
 
 
 
+////////////////////////////////////////
+// Settings (see Undefining Settings) //
+////////////////////////////////////////
+#ifndef  Steady_Trie
+# define Steady_Trie(identifier)  Steady_Trie_##identifier
+#endif
 
-////////////////////////////
-// Settings
-////////////////////////////
-#define Steady_Trie_Key_Bits 64
-#define Steady_Trie_Slot_Bits 2
+#ifndef  steady_trie
+# define steady_trie(identifier)  steady_trie_##identifier
+#endif
 
-#ifndef Steady_Trie_Root_Is_Lowest_Significant_Byte
+#ifndef  Steady_Trie_Key_Bits
+# define Steady_Trie_Key_Bits 64
+#endif
+
+#ifndef  Steady_Trie_Slot_Bits
+# define Steady_Trie_Slot_Bits 2
+#endif
+
+#ifndef  Steady_Trie_Root_Is_Lowest_Significant_Byte
 # define Steady_Trie_Root_Is_Lowest_Significant_Byte 1
 #endif
 
@@ -41,21 +53,24 @@
 # define Steady_Trie_Use_Key_Value_Pair 0
 #endif
 
-#if Steady_Trie_Key_Bits == 64
-typedef U64 Steady_Trie_Key;
-#elif Steady_Trie_Key_Bits == 32
-typedef U32 Steady_Trie_Key;
-#else
-# error Steady_Trie_Key_Bits can only be 32 or 64.
-#endif
 
-typedef U8 Steady_Trie_Slot_Type;
+
 
 
 
 ////////////////////////////
 // Computed Properties
 ////////////////////////////
+#if Steady_Trie_Key_Bits == 64
+typedef U64 Steady_Trie(Key);
+#elif Steady_Trie_Key_Bits == 32
+typedef U32 Steady_Trie(Key);
+#else
+# error Steady_Trie_Key_Bits can only be 32 or 64.
+#endif
+
+typedef U8 Steady_Trie(Slot_Type);
+
 #define Steady_Trie_Slot_Count\
   (1 << Steady_Trie_Slot_Bits)
 
@@ -65,6 +80,8 @@ typedef U8 Steady_Trie_Slot_Type;
 // TODO: The names for Steady_Trie_Single_Slot_Mask and Steady_Trie_Slot_Mask are confusing. Should probably rename!
 #define Steady_Trie_Single_Slot_Mask\
   ((1<<Steady_Trie_Slot_Bits)-1)
+
+
 
 
 ////////////////////////////
@@ -103,6 +120,7 @@ typedef U8 Steady_Trie_Slot_Type;
 #define Steady_Trie_Is_Key_At_Final_Depth(key, depth)\
   (Steady_Trie_Is_Max_Depth(depth) || ((Steady_Trie_Slot_Mask(depth) & key) == 0))
 
+#define function static
 
 
 ////////////////////////////
@@ -112,9 +130,9 @@ StaticAssert((Steady_Trie_Slot_Bits < Steady_Trie_Key_Bits),
              Ensure_Slot_Smaller_Than_Key);
 StaticAssert((Steady_Trie_Key_Bits % Steady_Trie_Slot_Bits) == 0,
              Ensure_Slot_Divides_Key);
-StaticAssert((8*sizeof(Steady_Trie_Slot_Type) >= Steady_Trie_Slot_Bits),
+StaticAssert((8*sizeof(Steady_Trie(Slot_Type)) >= Steady_Trie_Slot_Bits),
              Ensure_Slot_Type_Fits_Slot_Bits);
-StaticAssert((8*sizeof(Steady_Trie_Key) == Steady_Trie_Key_Bits),
+StaticAssert((8*sizeof(Steady_Trie(Key)) == Steady_Trie_Key_Bits),
              Ensure_Key_Type_Equals_Key_Bits);
 
 #ifndef Steady_Trie_Value_Type
@@ -122,6 +140,7 @@ StaticAssert((8*sizeof(Steady_Trie_Key) == Steady_Trie_Key_Bits),
 #  warning When using Steady_Trie_Use_Key_Value_Pair, Steady_Trie_Value_Type must also be defined, setting the type to be U64.
 # endif
 # define Steady_Trie_Value_Type U64
+typedef U64 Steady_Trie(Value_Type);
 #endif
 
 
@@ -129,77 +148,87 @@ StaticAssert((8*sizeof(Steady_Trie_Key) == Steady_Trie_Key_Bits),
 
 
 
-typedef struct Steady_Trie_Node {
+typedef struct Steady_Trie(Node) {
   U8 occupied[Steady_Trie_Slot_Count]; // TODO: Bit-flags?
-  struct Steady_Trie_Node *slots[Steady_Trie_Slot_Count];
+  struct Steady_Trie(Node) *slots[Steady_Trie_Slot_Count];
 #if Steady_Trie_Use_Key_Value_Pair
   Steady_Trie_Value_Type values[Steady_Trie_Slot_Count];
 #endif
-} Steady_Trie_Node;
+} Steady_Trie(Node);
 
-typedef struct Steady_Trie_Root {
-  struct Steady_Trie_Root *next_edit;
-  struct Steady_Trie_Root *prev_edit;
-  struct Steady_Trie_Root *next_branch;
-  struct Steady_Trie_Root *prev_branch;
-  Steady_Trie_Node *node;
-} Steady_Trie_Root;
+typedef struct Steady_Trie(Root) {
+  struct Steady_Trie(Root) *next_edit;
+  struct Steady_Trie(Root) *prev_edit;
+  struct Steady_Trie(Root) *next_branch;
+  struct Steady_Trie(Root) *prev_branch;
+  Steady_Trie(Node) *node;
+} Steady_Trie(Root);
 
-typedef struct Steady_Trie {
-  Steady_Trie_Root *root;
-  Steady_Trie_Root *current_root;
-} Steady_Trie;
+typedef struct Steady_Trie(Settings) {
+  U32 key_bits;
+  U32 slot_bits;
+  B32 root_is_lowest_significant_byte;
+  B32 use_key_value_pair;
+  U32 slot_count;
+  U32 max_depth;
+} Steady_Trie(Settings);
+
+typedef struct Steady_Trie(Trie) {
+  Steady_Trie(Root) *root;
+  Steady_Trie(Root) *current_root;
+  Steady_Trie(Settings) settings;
+} Steady_Trie(Trie);
 
 
-typedef struct Steady_Trie_Stack_Node {
-  struct Steady_Trie_Stack_Node *next;
-  Steady_Trie_Node *node;
+typedef struct Steady_Trie(Stack_Node) {
+  struct Steady_Trie(Stack_Node) *next;
+  Steady_Trie(Node) *node;
   U32 index;
   U32 visited_plus_one;
-} Steady_Trie_Stack_Node;
+} Steady_Trie(Stack_Node);
 
-typedef struct Steady_Trie_Iterator {
+typedef struct Steady_Trie(Iterator) {
   Arena *arena;
-  Steady_Trie_Stack_Node *stack;
-  Steady_Trie_Stack_Node *free_stack; // TODO: Use free stack-nodes!
-  Steady_Trie_Key key;
-} Steady_Trie_Iterator;
+  Steady_Trie(Stack_Node) *stack;
+  Steady_Trie(Stack_Node) *free_stack; // TODO: Use free stack-nodes!
+  Steady_Trie(Key) key;
+} Steady_Trie(Iterator);
 
 typedef enum {
-  Steady_Trie_Edit_Insert,
-  Steady_Trie_Edit_Delete,
-  Steady_Trie_Edit_Search,
-} Steady_Trie_Edit_Kind;
+  Steady_Trie(Edit_Insert),
+  Steady_Trie(Edit_Delete),
+  Steady_Trie(Edit_Search),
+} Steady_Trie(Edit_Kind);
 
 typedef enum {
-  Steady_Trie_Edit_Result_Key,
-  Steady_Trie_Edit_Result_Value,
-} Steady_Trie_Edit_Result_Kind;
+  Steady_Trie(Edit_Result_Key),
+  Steady_Trie(Edit_Result_Value),
+} Steady_Trie(Edit_Result_Kind);
 
-typedef struct Steady_Trie_Edit_Result {
-  Steady_Trie_Edit_Result_Kind kind;
+typedef struct Steady_Trie(Edit_Result) {
+  Steady_Trie(Edit_Result_Kind) kind;
   union {
     B32 found;
     Steady_Trie_Value_Type *value;
   };
-} Steady_Trie_Edit_Result;
+} Steady_Trie(Edit_Result);
 
 
 
-static Steady_Trie_Stack_Node *
-steady_trie_create_stack_node(Arena *arena, Steady_Trie_Stack_Node *free_stack) {
-  Steady_Trie_Stack_Node *node = 0;
+function Steady_Trie(Stack_Node) *
+steady_trie(create_stack_node)(Arena *arena, Steady_Trie(Stack_Node) *free_stack) {
+  Steady_Trie(Stack_Node) *node = 0;
   // TODO: Implement and use
 
   return node;
 }
 
-static void
-steady_trie_delete_stack_node(Arena *arena, Steady_Trie_Stack_Node *free_stack, Steady_Trie_Stack_Node *node) {
+function void
+steady_trie(delete_stack_node)(Arena *arena, Steady_Trie(Stack_Node) *free_stack, Steady_Trie(Stack_Node) *node) {
   // TODO: Implement and use
 }
 
-static void steady_trie_iter_next(Steady_Trie_Iterator *iter) {
+function void steady_trie(iter_next)(Steady_Trie(Iterator) *iter) {
   // Do a depth-first search until we find the next occupied key.
   for (;;) {
     if (iter->stack && iter->stack->node) {
@@ -212,7 +241,7 @@ static void steady_trie_iter_next(Steady_Trie_Iterator *iter) {
           U32 key_shift = 1;
           U64 key = Steady_Trie_Get_Initial_Iter_Key_Chunk(iter->stack->index);
           // Build up the key value by collecting all the indices on the stack.
-          for (Steady_Trie_Stack_Node *stack_node = iter->stack->next;
+          for (Steady_Trie(Stack_Node) *stack_node = iter->stack->next;
                stack_node != 0;
                stack_node = stack_node->next) {
             // NOTE: All of the nodes in the stack, aside from the current one, have had their indices iterated, so we need to subtract one from them. (This is alway why we do not process the current stack-node in the loop.)
@@ -226,8 +255,8 @@ static void steady_trie_iter_next(Steady_Trie_Iterator *iter) {
         else if (iter->stack->node->slots[iter->stack->index]) {
           // Child slot is present, so descend.
           // TODO: Recycle free stack-nodes!!!!!
-          Steady_Trie_Node *next_node = iter->stack->node->slots[iter->stack->index];
-          Steady_Trie_Stack_Node *new_stack_node = arena_push(iter->arena, sizeof(Steady_Trie_Stack_Node));
+          Steady_Trie(Node) *next_node = iter->stack->node->slots[iter->stack->index];
+          Steady_Trie(Stack_Node) *new_stack_node = arena_push(iter->arena, sizeof(Steady_Trie(Stack_Node)));
           iter->stack->index += 1;
           new_stack_node->node = next_node;
           SLLStackPush(iter->stack, new_stack_node);
@@ -249,9 +278,12 @@ static void steady_trie_iter_next(Steady_Trie_Iterator *iter) {
 }
 
 
-static Steady_Trie_Iterator *steady_trie_iter_init(Arena *arena, Steady_Trie_Node *root) {
-  Steady_Trie_Iterator *iter = arena_push(arena, sizeof(Steady_Trie_Iterator));
-  Steady_Trie_Stack_Node *stack = arena_push(arena, sizeof(Steady_Trie_Stack_Node));
+function Steady_Trie(Iterator) *steady_trie(iter_init)(
+  Arena *arena,
+  Steady_Trie(Node) *root
+  ) {
+  Steady_Trie(Iterator) *iter = arena_push(arena, sizeof(Steady_Trie(Iterator)));
+  Steady_Trie(Stack_Node) *stack = arena_push(arena, sizeof(Steady_Trie(Stack_Node)));
 
   if (iter && stack) {
     iter->arena = arena;
@@ -259,24 +291,25 @@ static Steady_Trie_Iterator *steady_trie_iter_init(Arena *arena, Steady_Trie_Nod
     iter->stack->node = root;
   }
 
-  steady_trie_iter_next(iter);
+  steady_trie(iter_next)(iter);
 
   return iter;
 }
 
 
-static B32 steady_trie_iter_test(Steady_Trie_Iterator *iter) {
+function B32 steady_trie(iter_test)(Steady_Trie(Iterator) *iter) {
   return iter && iter->stack;
 }
 
 
+// TODO: Allow for setting the function names for init, test, and next.
 #define Steady_Trie_Iterate(iter_name, arena, root)\
-  for (Steady_Trie_Iterator *iter_name = steady_trie_iter_init(arena, root);\
-       steady_trie_iter_test(iter_name);\
-       steady_trie_iter_next(iter_name))
+  for (Steady_Trie(Iterator) *iter_name = steady_trie(iter_init)(arena, root);\
+       steady_trie(iter_test)(iter_name);\
+       steady_trie(iter_next)(iter_name))
 
 
-static void steady_trie_print_trie(Arena *arena, Steady_Trie_Node *root) {
+function void steady_trie(print_trie)(Arena *arena, Steady_Trie(Node) *root) {
   printf("trie %p\n", root);
   Steady_Trie_Iterate(iter_name, arena, root) {
     printf("  key %llu\n", (U64)iter_name->key);
@@ -287,18 +320,18 @@ static void steady_trie_print_trie(Arena *arena, Steady_Trie_Node *root) {
 
 
 
-static void steady_trie_new_root_with_keys(
+function void steady_trie(new_root_with_keys)(
   Arena *arena,
-  Steady_Trie *trie,
-  Steady_Trie_Key *keys,
+  Steady_Trie(Trie) *trie,
+  Steady_Trie(Key) *keys,
   U32 key_count
   ) {
-  Steady_Trie_Node *new_node = arena_push(arena, sizeof(Steady_Trie_Node));
-  Steady_Trie_Root *new_root = arena_push(arena, sizeof(Steady_Trie_Root));
+  Steady_Trie(Node) *new_node = arena_push(arena, sizeof(Steady_Trie(Node)));
+  Steady_Trie(Root) *new_root = arena_push(arena, sizeof(Steady_Trie(Root)));
 
   // TODO: `current_node` and `current_new_node` are confusing names.
-  Steady_Trie_Node *current_node = trie->current_root->node;
-  Steady_Trie_Node *current_new_node = new_node;
+  Steady_Trie(Node) *current_node = trie->current_root->node;
+  Steady_Trie(Node) *current_new_node = new_node;
 
   if (new_node && new_root) {
     // Setup new node.
@@ -308,7 +341,7 @@ static void steady_trie_new_root_with_keys(
     // Push new root.
     if (trie->current_root->next_edit) {
       // @Speed
-      Steady_Trie_Root *last_branch = trie->current_root;
+      Steady_Trie(Root) *last_branch = trie->current_root;
       for (;last_branch->next_branch != 0;) {
         last_branch = last_branch->next_branch;
       }
@@ -326,16 +359,16 @@ static void steady_trie_new_root_with_keys(
 
     // Fill out the root with new nodes.
     for (U32 k = 0; k < key_count; ++k) {
-      Steady_Trie_Key key = keys[k];
+      Steady_Trie(Key) key = keys[k];
 
       for (U32 d = 0; d < Steady_Trie_Max_Depth; ++d) {
-        Steady_Trie_Slot_Type slot_value = Steady_Trie_Get_Slot_Value(key, d);
+        Steady_Trie(Slot_Type) slot_value = Steady_Trie_Get_Slot_Value(key, d);
         Assert(slot_value >= 0 && slot_value <= Steady_Trie_Single_Slot_Mask);
         B32 final_depth = Steady_Trie_Is_Key_At_Final_Depth(key, d);
 
         if (!final_depth && current_node->slots[slot_value] && current_new_node->slots[slot_value]) {
           // Copy and descend.
-          Steady_Trie_Node *new_node = arena_push(arena, sizeof(Steady_Trie_Node));
+          Steady_Trie(Node) *new_node = arena_push(arena, sizeof(Steady_Trie(Node)));
           if (new_node) {
             current_node = current_node->slots[slot_value];
             *new_node = *current_node;
@@ -357,44 +390,44 @@ static void steady_trie_new_root_with_keys(
 }
 
 
-static void steady_trie_new_root(
+function void steady_trie(new_root)(
   Arena *arena,
-  Steady_Trie *trie,
-  Steady_Trie_Key key
+  Steady_Trie(Trie) *trie,
+  Steady_Trie(Key) key
   ) {
-  Steady_Trie_Key keys[] = {key};
-  steady_trie_new_root_with_keys(arena, trie, keys, 1);
+  Steady_Trie(Key) keys[] = {key};
+  steady_trie(new_root_with_keys)(arena, trie, keys, 1);
 }
 
 
-static Steady_Trie_Edit_Result steady_trie_edit(
+function Steady_Trie(Edit_Result) steady_trie(edit)(
   Arena *arena,
-  Steady_Trie *trie,
-  Steady_Trie_Key key,
+  Steady_Trie(Trie) *trie,
+  Steady_Trie(Key) key,
   Steady_Trie_Value_Type value,
-  Steady_Trie_Edit_Kind edit_kind
+  Steady_Trie(Edit_Kind) edit_kind
   ) {
-  Steady_Trie_Edit_Result result = (Steady_Trie_Edit_Result){0};
-  if (edit_kind != Steady_Trie_Edit_Search) {
-    steady_trie_new_root(arena, trie, key);
+  Steady_Trie(Edit_Result) result = (Steady_Trie(Edit_Result)){0};
+  if (edit_kind != Steady_Trie(Edit_Search)) {
+    steady_trie(new_root)(arena, trie, key);
   }
-  Steady_Trie_Node *node = trie->current_root->node;
+  Steady_Trie(Node) *node = trie->current_root->node;
 
   for (U32 d = 0; (d < Steady_Trie_Max_Depth) && node; ++d) {
-    Steady_Trie_Slot_Type slot_value = Steady_Trie_Get_Slot_Value(key, d);
+    Steady_Trie(Slot_Type) slot_value = Steady_Trie_Get_Slot_Value(key, d);
     Assert(slot_value >= 0 && slot_value <= Steady_Trie_Single_Slot_Mask);
 
     if (Steady_Trie_Is_Key_At_Final_Depth(key, d)) {
-      if (edit_kind == Steady_Trie_Edit_Insert) {
+      if (edit_kind == Steady_Trie(Edit_Insert)) {
         node->occupied[slot_value] = 1;
 #if Steady_Trie_Use_Key_Value_Pair
         node->values[slot_value] = value;
 #endif
       }
-      else if (edit_kind == Steady_Trie_Edit_Delete) {
+      else if (edit_kind == Steady_Trie(Edit_Delete)) {
         node->occupied[slot_value] = 0;
       }
-      else if (edit_kind == Steady_Trie_Edit_Search) {
+      else if (edit_kind == Steady_Trie(Edit_Search)) {
 #if Steady_Trie_Use_Key_Value_Pair
         if (node->occupied[slot_value]) {
           result.value = &node->values[slot_value];
@@ -406,9 +439,9 @@ static Steady_Trie_Edit_Result steady_trie_edit(
       break;
     }
     else {
-      if (edit_kind == Steady_Trie_Edit_Insert && node->slots[slot_value] == 0) {
+      if (edit_kind == Steady_Trie(Edit_Insert) && node->slots[slot_value] == 0) {
         // Add new node
-        node->slots[slot_value] = arena_push(arena, sizeof(Steady_Trie_Node));
+        node->slots[slot_value] = arena_push(arena, sizeof(Steady_Trie(Node)));
       }
 
       // Descend
@@ -422,50 +455,57 @@ static Steady_Trie_Edit_Result steady_trie_edit(
 
 
 #if Steady_Trie_Use_Key_Value_Pair
-static Steady_Trie_Edit_Result steady_trie_set(
+function Steady_Trie(Edit_Result) steady_trie(set)(
   Arena *arena,
-  Steady_Trie *trie,
-  Steady_Trie_Key key,
-  Steady_Trie_Value_Type value
+  Steady_Trie(Trie) *trie,
+  Steady_Trie(Key) key,
+  Steady_Trie(Value_Type) value
   ) {
-  return steady_trie_edit(arena, trie, key, value, Steady_Trie_Edit_Insert);
+  return steady_trie(edit)(arena, trie, key, value, Steady_Trie(Edit_Insert));
 }
 #else
-static Steady_Trie_Edit_Result steady_trie_insert(
+function Steady_Trie(Edit_Result) steady_trie(insert)(
   Arena *arena,
-  Steady_Trie *trie,
-  Steady_Trie_Key key
+  Steady_Trie(Trie) *trie,
+  Steady_Trie(Key) key
   ) {
-  return steady_trie_edit(arena, trie, key, 0, Steady_Trie_Edit_Insert);
+  return steady_trie(edit)(arena, trie, key, 0, Steady_Trie(Edit_Insert));
 }
 #endif
 
-static Steady_Trie_Edit_Result steady_trie_delete(
+function Steady_Trie(Edit_Result) steady_trie(delete)(
   Arena *arena,
-  Steady_Trie *trie,
-  Steady_Trie_Key key
+  Steady_Trie(Trie) *trie,
+  Steady_Trie(Key) key
   ) {
-  return steady_trie_edit(arena, trie, key, 0, Steady_Trie_Edit_Delete);
+  return steady_trie(edit)(arena, trie, key, 0, Steady_Trie(Edit_Delete));
 }
 
-static Steady_Trie_Edit_Result steady_trie_search(
+function Steady_Trie(Edit_Result) steady_trie(search)(
   Arena *arena,
-  Steady_Trie *trie,
-  Steady_Trie_Key key
+  Steady_Trie(Trie) *trie,
+  Steady_Trie(Key) key
   ) {
-  return steady_trie_edit(arena, trie, key, 0, Steady_Trie_Edit_Search);
+  return steady_trie(edit)(arena, trie, key, 0, Steady_Trie(Edit_Search));
 }
 
 
-static Steady_Trie *steady_trie_create_trie(Arena *arena) {
-  Steady_Trie *trie = arena_push(arena, sizeof(Steady_Trie));
-  Steady_Trie_Node *node = arena_push(arena, sizeof(Steady_Trie_Node));
-  Steady_Trie_Root *root = arena_push(arena, sizeof(Steady_Trie_Root));
+function Steady_Trie(Trie) *steady_trie(create_trie)(Arena *arena) {
+  Steady_Trie(Trie) *trie = arena_push(arena, sizeof(Steady_Trie(Trie)));
+  Steady_Trie(Node) *node = arena_push(arena, sizeof(Steady_Trie(Node)));
+  Steady_Trie(Root) *root = arena_push(arena, sizeof(Steady_Trie(Root)));
 
   if (trie && node) {
     root->node = node;
     trie->root = root;
     trie->current_root = root;
+
+    trie->settings.key_bits = Steady_Trie_Key_Bits;
+    trie->settings.slot_bits = Steady_Trie_Slot_Bits;
+    trie->settings.root_is_lowest_significant_byte = Steady_Trie_Root_Is_Lowest_Significant_Byte;
+    trie->settings.use_key_value_pair = Steady_Trie_Use_Key_Value_Pair;
+    trie->settings.slot_count = Steady_Trie_Slot_Count;
+    trie->settings.max_depth = Steady_Trie_Max_Depth;
   }
   else {
     trie = 0;
@@ -477,13 +517,13 @@ static Steady_Trie *steady_trie_create_trie(Arena *arena) {
 
 
 
-static void steady_trie_undo(Steady_Trie *trie) {
+function void steady_trie(undo)(Steady_Trie(Trie) *trie) {
   if (trie->current_root->prev_edit != 0) {
     trie->current_root = trie->current_root->prev_edit;
   }
   else if (trie->current_root->prev_branch != 0) {
     // @Speed
-    Steady_Trie_Root *first_branch = trie->current_root;
+    Steady_Trie(Root) *first_branch = trie->current_root;
     for (;first_branch->prev_branch != 0;) {
       first_branch = first_branch->prev_branch;
     }
@@ -493,11 +533,11 @@ static void steady_trie_undo(Steady_Trie *trie) {
 }
 
 
-static void steady_trie_redo(Steady_Trie *trie) {
+void steady_trie(redo)(Steady_Trie(Trie) *trie) {
   // TODO: Allow for redoing other branches.
   if (trie->current_root->next_branch != 0) {
     // @Speed
-    Steady_Trie_Root *last_branch = trie->current_root;
+    Steady_Trie(Root) *last_branch = trie->current_root;
     for (;last_branch->next_branch != 0;) {
       last_branch = last_branch->next_branch;
     }
@@ -507,3 +547,31 @@ static void steady_trie_redo(Steady_Trie *trie) {
     trie->current_root = trie->current_root->next_edit;
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+////////////////////////////////////////
+// Undefining Settings (see Settings) //
+////////////////////////////////////////
+#undef Steady_Trie_
+#undef Steady_Trie
+#undef Steady_Trie_Key_Bits
+#undef Steady_Trie_Slot_Bits
+#undef Steady_Trie_Root_Is_Lowest_Significant_Byte
+#undef Steady_Trie_Use_Key_Value_Pair
