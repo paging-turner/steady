@@ -275,34 +275,39 @@ static void steady_trie_print_trie(Arena *arena, Steady_Trie_Node *root) {
 }
 
 
-static void steady_trie_print_trie_as_dot_file(Arena *arena, Steady_Trie_Node *root) {
+static void steady_trie_print_trie_as_dot_file(Arena *arena, Steady_Trie *trie) {
   // TODO: Use it or lose it.
   printf("\n\ndigraph G {\n");
   printf("rankdir=\"LR\";\n");
-  Steady_Trie_Iterator *iter = steady_trie_iter_init(arena, root);
+  for (Steady_Trie_Root_Stack *root = trie->roots.first;
+       root != 0;
+       root = root->next) {
+    Steady_Trie_Iterator *iter = steady_trie_iter_init(arena, root->node);
+    printf("%llu->%llu;\n", (U64)trie, (U64)root->node);
 
-  for (;;) {
-    if (iter->stack && iter->stack->node) {
-      if (iter->stack->index < Steady_Trie_Slot_Count) {
-        if (iter->stack->node->slots[iter->stack->index]) {
-          // TODO: Recycle free stack-nodes!!!!!
-          Steady_Trie_Node *next_node = iter->stack->node->slots[iter->stack->index];
-          Steady_Trie_Stack_Node *new_stack_node = arena_push(iter->arena, sizeof(Steady_Trie_Stack_Node));
-          iter->stack->index += 1;
-          new_stack_node->node = next_node;
-          printf("%llu->%llu;\n", (U64)iter->stack->node, (U64)new_stack_node->node);
-          SLLStackPush(iter->stack, new_stack_node);
+    for (;;) {
+      if (iter->stack && iter->stack->node) {
+        if (iter->stack->index < Steady_Trie_Slot_Count) {
+          if (iter->stack->node->slots[iter->stack->index]) {
+            // TODO: Recycle free stack-nodes!!!!!
+            Steady_Trie_Node *next_node = iter->stack->node->slots[iter->stack->index];
+            Steady_Trie_Stack_Node *new_stack_node = arena_push(iter->arena, sizeof(Steady_Trie_Stack_Node));
+            iter->stack->index += 1;
+            new_stack_node->node = next_node;
+            printf("%llu->%llu;\n", (U64)iter->stack->node, (U64)new_stack_node->node);
+            SLLStackPush(iter->stack, new_stack_node);
+          }
+          else {
+            iter->stack->index += 1;
+          }
         }
         else {
-          iter->stack->index += 1;
+          SLLStackPop(iter->stack); // TODO: Recycle stack-nodes!!!!!!!!
         }
       }
       else {
-        SLLStackPop(iter->stack); // TODO: Recycle stack-nodes!!!!!!!!
+        break;
       }
-    }
-    else {
-      break;
     }
   }
 
