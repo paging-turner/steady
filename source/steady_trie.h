@@ -19,13 +19,6 @@
 
 
 
-////////////////////////////
-// Api
-////////////////////////////
-// TODO: Fill out function/macro defs
-
-
-
 ////////////////////////////////////////
 // Settings (see Undefining Settings) //
 ////////////////////////////////////////
@@ -52,6 +45,24 @@
 #ifndef Steady_Trie_Use_Key_Value_Pair
 # define Steady_Trie_Use_Key_Value_Pair 0
 #endif
+
+
+
+////////////////////////////
+// Api
+////////////////////////////
+// TODO: Fill out function/macro defs
+#define Steady_Trie_Typedef(ds_type, type_name)\
+  typedef ds_type type_name type_name;
+Steady_Trie_Typedef(struct, Steady_Trie(            Node));
+Steady_Trie_Typedef(struct, Steady_Trie(            Root));
+Steady_Trie_Typedef(struct, Steady_Trie(        Settings));
+Steady_Trie_Typedef(struct, Steady_Trie(            Trie));
+Steady_Trie_Typedef(struct, Steady_Trie(      Stack_Node));
+Steady_Trie_Typedef(struct, Steady_Trie(        Iterator));
+Steady_Trie_Typedef(  enum, Steady_Trie(       Edit_Kind));
+Steady_Trie_Typedef(  enum, Steady_Trie(Edit_Result_Kind));
+Steady_Trie_Typedef(struct, Steady_Trie(     Edit_Result));
 
 
 
@@ -148,70 +159,70 @@ typedef U64 Steady_Trie(Value_Type);
 
 
 
-typedef struct Steady_Trie(Node) {
+struct Steady_Trie(Node) {
   U8 occupied[Steady_Trie_Slot_Count]; // TODO: Bit-flags?
   struct Steady_Trie(Node) *slots[Steady_Trie_Slot_Count];
 #if Steady_Trie_Use_Key_Value_Pair
   Steady_Trie_Value_Type values[Steady_Trie_Slot_Count];
 #endif
-} Steady_Trie(Node);
+};
 
-typedef struct Steady_Trie(Root) {
+struct Steady_Trie(Root) {
   struct Steady_Trie(Root) *next_edit;
   struct Steady_Trie(Root) *prev_edit;
   struct Steady_Trie(Root) *next_branch;
   struct Steady_Trie(Root) *prev_branch;
   Steady_Trie(Node) *node;
-} Steady_Trie(Root);
+};
 
-typedef struct Steady_Trie(Settings) {
+struct Steady_Trie(Settings) {
   U32 key_bits;
   U32 slot_bits;
   B32 root_is_lowest_significant_byte;
   B32 use_key_value_pair;
   U32 slot_count;
   U32 max_depth;
-} Steady_Trie(Settings);
+};
 
-typedef struct Steady_Trie(Trie) {
+struct Steady_Trie(Trie) {
   Steady_Trie(Root) *root;
   Steady_Trie(Root) *current_root;
   Steady_Trie(Settings) settings;
-} Steady_Trie(Trie);
+};
 
 
-typedef struct Steady_Trie(Stack_Node) {
+struct Steady_Trie(Stack_Node) {
   struct Steady_Trie(Stack_Node) *next;
   Steady_Trie(Node) *node;
   U32 index;
   U32 visited_plus_one;
-} Steady_Trie(Stack_Node);
+};
 
-typedef struct Steady_Trie(Iterator) {
+struct Steady_Trie(Iterator) {
   Arena *arena;
   Steady_Trie(Stack_Node) *stack;
   Steady_Trie(Stack_Node) *free_stack; // TODO: Use free stack-nodes!
   Steady_Trie(Key) key;
-} Steady_Trie(Iterator);
+};
 
-typedef enum {
+enum Steady_Trie(Edit_Kind) {
   Steady_Trie(Edit_Insert),
   Steady_Trie(Edit_Delete),
   Steady_Trie(Edit_Search),
-} Steady_Trie(Edit_Kind);
+};
 
-typedef enum {
+enum Steady_Trie(Edit_Result_Kind) {
   Steady_Trie(Edit_Result_Key),
   Steady_Trie(Edit_Result_Value),
-} Steady_Trie(Edit_Result_Kind);
+};
 
-typedef struct Steady_Trie(Edit_Result) {
+struct Steady_Trie(Edit_Result) {
   Steady_Trie(Edit_Result_Kind) kind;
   union {
     B32 found;
     Steady_Trie_Value_Type *value;
   };
-} Steady_Trie(Edit_Result);
+};
 
 
 
@@ -533,7 +544,7 @@ Steady_Function void steady_trie(undo)(Steady_Trie(Trie) *trie) {
 }
 
 
-void steady_trie(redo)(Steady_Trie(Trie) *trie) {
+Steady_Function void steady_trie(redo)(Steady_Trie(Trie) *trie) {
   // TODO: Allow for redoing other branches.
   if (trie->current_root->next_branch != 0) {
     // @Speed
@@ -549,6 +560,225 @@ void steady_trie(redo)(Steady_Trie(Trie) *trie) {
 }
 
 
+
+Steady_Function B32 steady_trie(ensure_key_has_occupation)(
+  Arena *arena,
+  Steady_Trie(Trie) *trie,
+  Steady_Trie(Key) key,
+  B32 occupation
+  ) {
+  B32 errors = 0;
+
+  if (trie->settings.use_key_value_pair) {
+    Steady_Trie(Edit_Result) search_result = steady_trie(search)(arena, trie, key);
+    Steady_Trie_Value_Type *value = search_result.value;
+
+    if (occupation && !value) {
+      printf("[ Error ] Null value at key %llu\n", (U64)key);
+      errors = 1;
+    }
+    // TODO: Check that values are equal.
+    /* else if (occupation && !Steady_Trie_Values_Equal(*value, Steady_Trie_Default_Value)) { */
+    /*   printf("[ Error ] Mismatched value at key %llu, expecting %llu but got %llu\n", (U64)key, Steady_Trie_Default_Value, *value); */
+    /*   errors = 1; */
+    /* } */
+    else if (!occupation && value) {
+      printf("[ Error ] Found a value at key %llu, but was not expecting a value.\n", (U64)key);
+      errors = 1;
+    }
+  }
+  else {
+    Steady_Trie(Edit_Result) search_result = steady_trie(search)(arena, trie, key);
+
+    if (search_result.found != occupation) {
+      printf("[ Error ] Expected key %llu to have occupation %d but it has occupation %d\n", (U64)key, occupation, search_result.found);
+      errors = 1;
+    }
+  }
+
+  return errors;
+}
+
+
+Steady_Function U32 steady_trie(run_tests)(Arena *arena) {
+  /* Arena *arena = arena_alloc_reserve(Steady_Trie_Test_Arena_Size, 0); */
+  Steady_Trie(Trie) *trie = steady_trie(create_trie)(arena);
+  U32 error_count = 0;
+
+  U64 a = 189;
+  U64 b = 242;
+  U64 c = 42387468;
+  U64 d;
+  if (trie->settings.key_bits == 64) {
+    d = 12370169555311111083LLU;
+  }
+  else {
+    d = 1237;
+  }
+  U64 e = 123701695;
+  U64 f = 9287349786368457;
+
+  U64 keys_to_add[] = {a, b, c, d};
+  U64 keys_to_delete[] = {b, d};
+
+  printf("=================\n");
+  printf("== Begin tests ==\n");
+  printf("=================\n");
+
+  printf("Inserting keys...");
+  for (U32 i = 0; i < ArrayCount(keys_to_add); ++i) {
+    Steady_Trie(Key) key = keys_to_add[i];
+    printf("%llu ", key);
+#if Steady_Trie_Use_Key_Value_Pair
+    steady_trie(set)(arena, trie, key, Steady_Trie_Default_Value);
+#else
+    steady_trie(insert)(arena, trie, key);
+#endif
+  }
+  printf("\n");
+
+  printf("Checking key occupancy...\n");
+  error_count += steady_trie(ensure_key_has_occupation)(arena, trie, a, 1);
+  error_count += steady_trie(ensure_key_has_occupation)(arena, trie, b, 1);
+  error_count += steady_trie(ensure_key_has_occupation)(arena, trie, c, 1);
+  error_count += steady_trie(ensure_key_has_occupation)(arena, trie, d, 1);
+  error_count += steady_trie(ensure_key_has_occupation)(arena, trie, e, 0);
+  error_count += steady_trie(ensure_key_has_occupation)(arena, trie, f, 0);
+
+  {
+    printf("Checking iterated keys...\n");
+    U32 match_count = 0;
+    for (Steady_Trie(Iterator) *iter_name = steady_trie(iter_init)(arena, trie->current_root->node);
+         steady_trie(iter_test)(iter_name);
+         steady_trie(iter_next)(iter_name)) {
+      B32 match = 0;
+      for (U32 i = 0; i < ArrayCount(keys_to_add); ++i) {
+        if (iter_name->key == keys_to_add[i]) {
+          match_count += 1;
+          match = 1;
+          break;
+        }
+      }
+      if (!match) {
+        printf("[ Error ] Found unmatched key while iterating, %llu\n", (U64)iter_name->key);
+        error_count += 1;
+      }
+    }
+    if (match_count != ArrayCount(keys_to_add)) {
+      printf("[ Error ] Expected to match %lu keys while iterating but only matched %d\n", ArrayCount(keys_to_add), match_count);
+      error_count += 1;
+    }
+  }
+
+  printf("Deleting keys...");
+  for (U32 i = 0; i < ArrayCount(keys_to_delete); ++i) {
+    Steady_Trie(Key) key = keys_to_add[i];
+    printf("%llu ", key);
+    steady_trie(delete)(arena, trie, keys_to_delete[i]);
+  }
+  printf("\n");
+
+  {
+    printf("Checking iterated keys...\n");
+    U32 match_count = 0;
+    for (Steady_Trie(Iterator) *iter_name = steady_trie(iter_init)(arena, trie->current_root->node);
+         steady_trie(iter_test)(iter_name);
+         steady_trie(iter_next)(iter_name)) {
+      B32 to_add_match = 0;
+      for (U32 i = 0; i < ArrayCount(keys_to_add); ++i) {
+        if (iter_name->key == keys_to_add[i]) {
+          match_count += 1;
+          to_add_match = 1;
+          break;
+        }
+      }
+      if (!to_add_match) {
+        printf("[ Error ] Found unmatched key while iterating, %llu\n", (U64)iter_name->key);
+        error_count += 1;
+      }
+      B32 to_delete_match = 0;
+      for (U32 i = 0; i < ArrayCount(keys_to_delete); ++i) {
+        if (iter_name->key == keys_to_delete[i]) {
+          to_delete_match = 1;
+          break;
+        }
+      }
+      if (to_delete_match) {
+        printf("[ Error ] Found matched key that should have been deleted, %llu\n", (U64)iter_name->key);
+        error_count += 1;
+      }
+    }
+    if (match_count != ArrayCount(keys_to_add) - ArrayCount(keys_to_delete)) {
+      printf("[ Error ] Expected to match %lu keys while iterating but only matched %d\n", ArrayCount(keys_to_add)-ArrayCount(keys_to_delete), match_count);
+      error_count += 1;
+    }
+  }
+
+  {
+    printf("Checking key occupancy...\n");
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, a, 1);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, b, 0);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, c, 1);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, d, 0);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, e, 0);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, f, 0);
+  }
+
+  {
+    printf("Undo one delete...\n");
+    printf("undo with prev_edit=%p\n          prev_branch=%p\n", trie->current_root->prev_edit, trie->current_root->prev_branch);
+    steady_trie(undo)(trie);
+    printf("     into prev_edit=%p\n          prev_branch=%p\n", trie->current_root->prev_edit, trie->current_root->prev_branch);
+  }
+
+  {
+    printf("Checking key occupancy...\n");
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, a, 1);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, b, 0);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, c, 1);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, d, 1);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, e, 0);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, f, 0);
+  }
+
+  printf("Undo one-more delete...\n");
+  steady_trie(undo)(trie);
+
+  {
+    printf("Checking key occupancy...\n");
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, a, 1);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, b, 1);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, c, 1);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, d, 1);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, e, 0);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, f, 0);
+  }
+
+  printf("Redo one delete...\n");
+  steady_trie(redo)(trie);
+
+  {
+    printf("Checking key occupancy...\n");
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, a, 1);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, b, 0);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, c, 1);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, d, 1);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, e, 0);
+    error_count += steady_trie(ensure_key_has_occupation)(arena, trie, f, 0);
+  }
+
+  printf("==================\n");
+  printf("== End of tests ==\n");
+  printf("==================\n");
+  if (error_count) {
+    printf("%d FAILURES.\n", error_count);
+  }
+  else {
+    printf("Tests PASSED.\n");
+  }
+
+  return error_count;
+}
 
 
 
