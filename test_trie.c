@@ -33,15 +33,14 @@
 #define Steady_Trie_Use_Key_Value_Pair 0
 #include "source/steady_trie.h"
 
+
 #define Steady_Trie(ident)  Trie_C_##ident
 #define steady_trie(ident)  trie_c_##ident
 #define Steady_Trie_Key_Bits 64
 #define Steady_Trie_Slot_Bits 4
 #define Steady_Trie_Root_Is_Lowest_Significant_Byte 0
 #define Steady_Trie_Use_Key_Value_Pair 1
-typedef struct foo {
-  U64 bar;
-} foo;
+typedef struct foo { U64 bar; } foo;
 # define Steady_Trie_Value_Type foo
 # define Steady_Trie_Default_Value (foo){0}
 static B32 steady_trie(values_equal)(foo v1, foo v2){ return v1.bar == v2.bar; }
@@ -77,46 +76,6 @@ static void SetPcgSeed(pcg32_random_t *Rng, B32 Nondeterministic, U32 Rounds)
 
 
 
-
-#if 0
-static B32 steady_trie_ensure_key_has_occupation(
-  Arena *arena,
-  Trie_A_Trie *trie,
-  Trie_A_Key key,
-  B32 occupation
-  ) {
-  B32 errors = 0;
-
-  if (trie->settings.use_key_value_pair) {
-    Trie_A_Edit_Result search_result = trie_a_search(arena, trie, key);
-    Trie_A_Value_Type *value = search_result.value;
-
-    if (occupation && !value) {
-      printf("[ Error ] Null value at key %llu\n", (U64)key);
-      errors = 1;
-    }
-    // TODO: Check that values are equal.
-    else if (occupation && !steady_trie_values_equal(*value, Steady_Trie_Default_Value)) {
-      printf("[ Error ] Mismatched value at key %llu, expecting %llu but got %llu\n", (U64)key, Steady_Trie_Default_Value, *value);
-      errors = 1;
-    }
-    else if (!occupation && value) {
-      printf("[ Error ] Found a value at key %llu, but was not expecting a value.\n", (U64)key);
-      errors = 1;
-    }
-  }
-  else {
-    Trie_A_Edit_Result search_result = trie_a_search(arena, trie, key);
-
-    if (search_result.found != occupation) {
-      printf("[ Error ] Expected key %llu to have occupation %d but it has occupation %d\n", (U64)key, occupation, search_result.found);
-      errors = 1;
-    }
-  }
-
-  return errors;
-}
-#endif
 
 
 static void steady_trie_print_key_efficiency(Arena *arena, U64 key_count) {
@@ -223,6 +182,7 @@ S32 main(void) {
   error_count    += trie_c_run_tests(test_arena);
   arena_pop_to(test_arena, 0);
 
+  // TODO: Maybe move sequential/random/pointer tests to steady_trie.h as well.
 #if 0
   printf("\n\n");
   steady_trie_sequential_keys_test();
@@ -233,11 +193,11 @@ S32 main(void) {
   steady_trie_malloc_pointers_test();
   printf("\n\n");
 # endif
-#endif
 
-  /* Arena *debug_arena = arena_alloc_reserve(Steady_Trie_Test_Arena_Size, 0); */
-  /* Trie_A_Trie *debug_trie = trie_a_create_trie(debug_arena); */
-  /* steady_trie_print_struct_sizes(debug_trie); */
+  Arena *debug_arena = arena_alloc_reserve(Steady_Trie_Test_Arena_Size, 0);
+  Trie_A_Trie *debug_trie = trie_a_create_trie(debug_arena);
+  steady_trie_print_struct_sizes(debug_trie);
+#endif
 
   return 0;
 }

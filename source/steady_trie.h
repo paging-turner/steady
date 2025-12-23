@@ -330,12 +330,6 @@ Steady_Function B32 steady_trie(iter_test)(Steady_Trie(Iterator) *iter) {
        steady_trie(iter_next)(iter_name))
 
 
-Steady_Function void steady_trie(print_trie)(Arena *arena, Steady_Trie(Node) *root) {
-  printf("trie %p\n", root);
-  Steady_Trie_Iterate(iter_name, arena, root) {
-    printf("  key %llu\n", (U64)iter_name->key);
-  }
-}
 
 
 
@@ -796,13 +790,6 @@ Steady_Function U32 steady_trie(run_tests)(Arena *arena) {
 
   return error_count;
 }
-
-
-
-
-
-
-
 
 
 
