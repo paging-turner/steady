@@ -1,3 +1,8 @@
+// TODO: Remove Trie_A specific test functions and more to steady_trie.h for now...
+
+
+
+
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -28,7 +33,19 @@
 #define Steady_Trie_Use_Key_Value_Pair 0
 #include "source/steady_trie.h"
 
-
+#define Steady_Trie(ident)  Trie_C_##ident
+#define steady_trie(ident)  trie_c_##ident
+#define Steady_Trie_Key_Bits 64
+#define Steady_Trie_Slot_Bits 4
+#define Steady_Trie_Root_Is_Lowest_Significant_Byte 0
+#define Steady_Trie_Use_Key_Value_Pair 1
+typedef struct foo {
+  U64 bar;
+} foo;
+# define Steady_Trie_Value_Type foo
+# define Steady_Trie_Default_Value (foo){0}
+static B32 steady_trie(values_equal)(foo v1, foo v2){ return v1.bar == v2.bar; }
+#include "source/steady_trie.h"
 
 
 
@@ -61,6 +78,7 @@ static void SetPcgSeed(pcg32_random_t *Rng, B32 Nondeterministic, U32 Rounds)
 
 
 
+#if 0
 static B32 steady_trie_ensure_key_has_occupation(
   Arena *arena,
   Trie_A_Trie *trie,
@@ -78,10 +96,10 @@ static B32 steady_trie_ensure_key_has_occupation(
       errors = 1;
     }
     // TODO: Check that values are equal.
-    /* else if (occupation && !Steady_Trie_Values_Equal(*value, Steady_Trie_Default_Value)) { */
-    /*   printf("[ Error ] Mismatched value at key %llu, expecting %llu but got %llu\n", (U64)key, Steady_Trie_Default_Value, *value); */
-    /*   errors = 1; */
-    /* } */
+    else if (occupation && !steady_trie_values_equal(*value, Steady_Trie_Default_Value)) {
+      printf("[ Error ] Mismatched value at key %llu, expecting %llu but got %llu\n", (U64)key, Steady_Trie_Default_Value, *value);
+      errors = 1;
+    }
     else if (!occupation && value) {
       printf("[ Error ] Found a value at key %llu, but was not expecting a value.\n", (U64)key);
       errors = 1;
@@ -98,6 +116,7 @@ static B32 steady_trie_ensure_key_has_occupation(
 
   return errors;
 }
+#endif
 
 
 static void steady_trie_print_key_efficiency(Arena *arena, U64 key_count) {
@@ -199,6 +218,9 @@ S32 main(void) {
   arena_pop_to(test_arena, 0);
 
   error_count    += trie_b_run_tests(test_arena);
+  arena_pop_to(test_arena, 0);
+
+  error_count    += trie_c_run_tests(test_arena);
   arena_pop_to(test_arena, 0);
 
 #if 0

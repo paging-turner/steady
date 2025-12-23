@@ -154,7 +154,17 @@ StaticAssert((8*sizeof(Steady_Trie(Key)) == Steady_Trie_Key_Bits),
 typedef U64 Steady_Trie(Value_Type);
 #endif
 
+#ifndef Steady_Trie_Default_Value
+# if Steady_Trie_Use_Key_Value_Pair
+#  warning When using Steady_Trie_Use_Key_Value_Pair, Steady_Trie_Default_Value must also be defined, setting the default to 0.
+# endif
+# define Steady_Trie_Default_Value 0
+#endif
 
+#if Steady_Trie_Use_Key_Value_Pair
+// Define steady_trie(values_equal) without an implementation to force the user to define the function with the custom types.
+static B32 steady_trie(values_equal)(Steady_Trie_Value_Type v1, Steady_Trie_Value_Type v2);
+#endif
 
 
 
@@ -470,7 +480,7 @@ Steady_Function Steady_Trie(Edit_Result) steady_trie(set)(
   Arena *arena,
   Steady_Trie(Trie) *trie,
   Steady_Trie(Key) key,
-  Steady_Trie(Value_Type) value
+  Steady_Trie_Value_Type value
   ) {
   return steady_trie(edit)(arena, trie, key, value, Steady_Trie(Edit_Insert));
 }
@@ -480,7 +490,7 @@ Steady_Function Steady_Trie(Edit_Result) steady_trie(insert)(
   Steady_Trie(Trie) *trie,
   Steady_Trie(Key) key
   ) {
-  return steady_trie(edit)(arena, trie, key, 0, Steady_Trie(Edit_Insert));
+  return steady_trie(edit)(arena, trie, key, Steady_Trie_Default_Value, Steady_Trie(Edit_Insert));
 }
 #endif
 
@@ -489,7 +499,7 @@ Steady_Function Steady_Trie(Edit_Result) steady_trie(delete)(
   Steady_Trie(Trie) *trie,
   Steady_Trie(Key) key
   ) {
-  return steady_trie(edit)(arena, trie, key, 0, Steady_Trie(Edit_Delete));
+  return steady_trie(edit)(arena, trie, key, Steady_Trie_Default_Value, Steady_Trie(Edit_Delete));
 }
 
 Steady_Function Steady_Trie(Edit_Result) steady_trie(search)(
@@ -497,7 +507,7 @@ Steady_Function Steady_Trie(Edit_Result) steady_trie(search)(
   Steady_Trie(Trie) *trie,
   Steady_Trie(Key) key
   ) {
-  return steady_trie(edit)(arena, trie, key, 0, Steady_Trie(Edit_Search));
+  return steady_trie(edit)(arena, trie, key, Steady_Trie_Default_Value, Steady_Trie(Edit_Search));
 }
 
 
@@ -561,6 +571,8 @@ Steady_Function void steady_trie(redo)(Steady_Trie(Trie) *trie) {
 
 
 
+
+
 Steady_Function B32 steady_trie(ensure_key_has_occupation)(
   Arena *arena,
   Steady_Trie(Trie) *trie,
@@ -577,13 +589,16 @@ Steady_Function B32 steady_trie(ensure_key_has_occupation)(
       printf("[ Error ] Null value at key %llu\n", (U64)key);
       errors = 1;
     }
+#if Steady_Trie_Use_Key_Value_Pair
     // TODO: Check that values are equal.
-    /* else if (occupation && !Steady_Trie_Values_Equal(*value, Steady_Trie_Default_Value)) { */
-    /*   printf("[ Error ] Mismatched value at key %llu, expecting %llu but got %llu\n", (U64)key, Steady_Trie_Default_Value, *value); */
-    /*   errors = 1; */
-    /* } */
+    else if (occupation && !steady_trie(values_equal)(*value, Steady_Trie_Default_Value)) {
+      printf("[ Error ] Mismatched value at key %llu.\n", (U64)key);
+      errors = 1;
+    }
+#endif
     else if (!occupation && value) {
-      printf("[ Error ] Found a value at key %llu, but was not expecting a value.\n", (U64)key);
+      printf("[ Error ] Found a value at key %llu, but was not expecting a value.\n",
+             (U64)key);
       errors = 1;
     }
   }
@@ -591,7 +606,8 @@ Steady_Function B32 steady_trie(ensure_key_has_occupation)(
     Steady_Trie(Edit_Result) search_result = steady_trie(search)(arena, trie, key);
 
     if (search_result.found != occupation) {
-      printf("[ Error ] Expected key %llu to have occupation %d but it has occupation %d\n", (U64)key, occupation, search_result.found);
+      printf("[ Error ] Expected key %llu to have occupation %d but it has occupation %d\n",
+             (U64)key, occupation, search_result.found);
       errors = 1;
     }
   }
@@ -621,6 +637,7 @@ Steady_Function U32 steady_trie(run_tests)(Arena *arena) {
   U64 keys_to_add[] = {a, b, c, d};
   U64 keys_to_delete[] = {b, d};
 
+  printf("\n\n\n");
   printf("=================\n");
   printf("== Begin tests ==\n");
   printf("=================\n");
@@ -817,3 +834,7 @@ Steady_Function U32 steady_trie(run_tests)(Arena *arena) {
 #undef Steady_Trie_Is_Max_Depth
 #undef Steady_Trie_Is_Key_At_Final_Depth
 #undef Steady_Function
+
+#undef Steady_Trie_Value_Type
+#undef Steady_Trie_Default_Value
+#undef Steady_Trie_Values_Equal
